@@ -1,0 +1,30 @@
+# local env files
+.env*.local
+.env
+
+# misc
+.DS_Store
+*.pem
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*.swm
+.vscode/
+
+# Binaries, plugins, libs
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/vendor/
+node
+
+__debug_*
+
+# Test binary, build with 'go test -c'
+**/*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+**/*.out
