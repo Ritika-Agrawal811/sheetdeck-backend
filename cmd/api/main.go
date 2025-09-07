@@ -145,6 +145,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	// repo := repository.New(pgClient.Client)
+
 	// Channel for server errors
 	serverErr := make(chan error, 1)
 
