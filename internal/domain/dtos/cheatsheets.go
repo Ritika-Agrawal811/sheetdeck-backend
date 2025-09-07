@@ -1,0 +1,9 @@
+package dtos
+
+type CreateCheatsheetRequest struct {
+	Slug        string `json:"slug" binding:"required"`
+	Title       string `json:"title" binding:"required"`
+	Category    string `json:"category" binding:"required"`
+	SubCategory string `json:"subcategory" binding:"required"`
+	ImageURL    string `json:"image_url"`
+}

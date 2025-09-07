@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/api/routes"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/infra/db"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/secure"
 	"github.com/gin-gonic/gin"
@@ -145,7 +147,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// repo := repository.New(pgClient.Client)
+	repo := repository.New(pgClient.Client)
+	services := routes.NewServicesContainer(repo)
+
+	// Setup routes with services
+	routes.SetupRoutes(r, services)
 
 	// Channel for server errors
 	serverErr := make(chan error, 1)
