@@ -7,3 +7,7 @@ type CreateCheatsheetRequest struct {
 	SubCategory string `json:"subcategory" binding:"required"`
 	ImageURL    string `json:"image_url"`
 }
+
+type BulkCreateCheatsheetRequest struct {
+	Cheatsheets []CreateCheatsheetRequest `json:"cheatsheets" binding:"required,dive,required"`
+}

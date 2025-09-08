@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/utils"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -46,6 +47,9 @@ func connectPostgres() *pgxpool.Pool {
 	if err != nil {
 		log.Fatal().Msgf("Unable to parse DSN: %v", err)
 	}
+
+	// 🚨 Important: Disable statement cache to avoid "already exists" errors
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	// Set the connection pool configuration
 	config.MaxConns = 10
