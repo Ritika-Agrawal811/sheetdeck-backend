@@ -12,6 +12,7 @@ import (
 
 type CheatsheetsService interface {
 	CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest) error
+	BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest) error
 }
 
 type cheatsheetsService struct {
@@ -24,6 +25,11 @@ func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
 	}
 }
 
+/**
+ * Create a new cheatsheet
+ * @param details dtos.CreateCheatsheetRequest
+ * @return error
+ */
 func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest) error {
 
 	if details.Slug == "" || details.Title == "" {
@@ -47,5 +53,19 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 		return fmt.Errorf("failed to create cheatsheet: %w", err)
 	}
 
+	return nil
+}
+
+/**
+ * Bulk create cheatsheets
+ * @param details []dtos.CreateCheatsheetRequest
+ * @return error
+ */
+func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest) error {
+	for _, cheatsheet := range details {
+		if err := s.CreateCheatsheet(ctx, cheatsheet); err != nil {
+			return err
+		}
+	}
 	return nil
 }
