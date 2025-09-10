@@ -82,25 +82,25 @@ func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsh
 const listCheatsheets = `-- name: ListCheatsheets :many
 SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
 FROM cheatsheets
-WHERE ($1::category IS NULL OR category = $1)
-  AND ($2::subcategory IS NULL OR subcategory = $2)
+WHERE ($3::category IS NULL OR category = $3)
+  AND ($4::subcategory IS NULL OR subcategory = $4)
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4
+LIMIT $1 OFFSET $2
 `
 
 type ListCheatsheetsParams struct {
-	Column1 Category    `json:"column_1"`
-	Column2 Subcategory `json:"column_2"`
-	Limit   int32       `json:"limit"`
-	Offset  int32       `json:"offset"`
+	Limit       int32           `json:"limit"`
+	Offset      int32           `json:"offset"`
+	Category    NullCategory    `json:"category"`
+	Subcategory NullSubcategory `json:"subcategory"`
 }
 
 func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]Cheatsheet, error) {
 	rows, err := q.db.Query(ctx, listCheatsheets,
-		arg.Column1,
-		arg.Column2,
 		arg.Limit,
 		arg.Offset,
+		arg.Category,
+		arg.Subcategory,
 	)
 	if err != nil {
 		return nil, err

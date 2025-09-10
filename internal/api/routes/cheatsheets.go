@@ -9,6 +9,9 @@ func setupCheatsheetsRoutes(router *gin.Engine, services *ServicesContainer) {
 	cheatsheetsHandler := handlers.NewCheatsheetsHandler(services.CheatsheetsService)
 	cheatsheetsGroup := router.Group("/cheatsheets")
 
+	cheatsheetsGroup.GET("/", cheatsheetsHandler.GetAllCheatsheets)
+	cheatsheetsGroup.GET("/:id", cheatsheetsHandler.GetCheatsheetByID)
+	cheatsheetsGroup.GET("/slug/:slug", cheatsheetsHandler.GetCheatsheetBySlug)
 	cheatsheetsGroup.POST("/create", cheatsheetsHandler.CreateCheatsheet)
 	cheatsheetsGroup.POST("/create/bulk", cheatsheetsHandler.BulkCreateCheatsheets)
 
