@@ -13,6 +13,9 @@ import (
 type CheatsheetsService interface {
 	CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest) error
 	BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest) error
+	GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error)
+	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error)
+	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.Cheatsheet, error)
 }
 
 type cheatsheetsService struct {
@@ -48,7 +51,6 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 		ImageUrl:    utils.PgText(details.ImageURL),
 	}
 
-	// Call the repository method to create a cheatsheet
 	if err := s.repo.CreateCheatsheet(ctx, cheatsheetDetails); err != nil {
 		return fmt.Errorf("failed to create cheatsheet: %w", err)
 	}
@@ -68,4 +70,60 @@ func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details 
 		}
 	}
 	return nil
+}
+
+/**
+ * Get a cheatsheet by its ID
+ * @param id string
+ * @return *repository.Cheatsheet, error
+ */
+func (s *cheatsheetsService) GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error) {
+	cheatsheetID, err := utils.StringToUUID(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	cheatsheet, err := s.repo.GetCheatsheetByID(ctx, cheatsheetID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cheatsheet: %w", err)
+	}
+
+	return &cheatsheet, nil
+}
+
+/**
+ * Get a cheatsheet by its slug
+ * @param slug string
+ * @return *repository.Cheatsheet, error
+ */
+func (s *cheatsheetsService) GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error) {
+	cheatsheet, err := s.repo.GetCheatsheetBySlug(ctx, slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cheatsheet: %w", err)
+	}
+
+	return &cheatsheet, nil
+}
+
+/**
+ * Get all cheatsheets, optionally filtered by category and subcategory
+ * @param category string
+ * @param subcategory string
+ * @return []repository.Cheatsheet, error
+ */
+func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.Cheatsheet, error) {
+
+	details := repository.ListCheatsheetsParams{
+		Category:    repository.NullCategory{Category: repository.Category(category), Valid: category != ""},
+		Subcategory: repository.NullSubcategory{Subcategory: repository.Subcategory(subcategory), Valid: subcategory != ""},
+		Limit:       100,
+		Offset:      0,
+	}
+
+	cheatsheets, err := s.repo.ListCheatsheets(ctx, details)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cheatsheets: %w", err)
+	}
+
+	return cheatsheets, nil
 }

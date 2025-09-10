@@ -16,7 +16,7 @@ WHERE slug = $1;
 -- name: ListCheatsheets :many
 SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
 FROM cheatsheets
-WHERE ($1::category IS NULL OR category = $1)
-  AND ($2::subcategory IS NULL OR subcategory = $2)
+WHERE (sqlc.narg(category)::category IS NULL OR category = sqlc.narg(category))
+  AND (sqlc.narg(subcategory)::subcategory IS NULL OR subcategory = sqlc.narg(subcategory))
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4; 
+LIMIT $1 OFFSET $2;
