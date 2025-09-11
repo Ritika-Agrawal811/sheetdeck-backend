@@ -7,13 +7,13 @@ import (
 
 func setupCheatsheetsRoutes(router *gin.Engine, services *ServicesContainer) {
 	cheatsheetsHandler := handlers.NewCheatsheetsHandler(services.CheatsheetsService)
-	cheatsheetsGroup := router.Group("/cheatsheets")
+	cheatsheetsGroup := router.Group("/api/cheatsheets")
 
-	cheatsheetsGroup.GET("/", cheatsheetsHandler.GetAllCheatsheets)
+	cheatsheetsGroup.GET("", cheatsheetsHandler.GetAllCheatsheets)
 	cheatsheetsGroup.GET("/:id", cheatsheetsHandler.GetCheatsheetByID)
 	cheatsheetsGroup.GET("/slug/:slug", cheatsheetsHandler.GetCheatsheetBySlug)
-	cheatsheetsGroup.POST("/create", cheatsheetsHandler.CreateCheatsheet)
-	cheatsheetsGroup.POST("/create/bulk", cheatsheetsHandler.BulkCreateCheatsheets)
-	cheatsheetsGroup.PUT("/update/:id", cheatsheetsHandler.UpdateCheatsheet)
+	cheatsheetsGroup.POST("", cheatsheetsHandler.CreateCheatsheet)
+	cheatsheetsGroup.POST("/bulk", cheatsheetsHandler.BulkCreateCheatsheets)
+	cheatsheetsGroup.PUT("/:id", cheatsheetsHandler.UpdateCheatsheet)
 
 }

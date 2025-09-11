@@ -26,7 +26,7 @@ func NewCheatsheetsHandler(service cheatsheets.CheatsheetsService) *CheatsheetsH
  * @param cheatsheet body dtos.CreateCheatsheetRequest
  * @success 201 {object} map[string]string{"message": "Cheatsheet created successfully"}
  * @failure 400 {object} map[string]string{"error": "Failed to create cheatsheet"}
- * @router /cheatsheets/create [post]
+ * @router /api/cheatsheets [post]
  */
 func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 	var req dtos.CreateCheatsheetRequest
@@ -52,7 +52,7 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
  * @param cheatsheets body []dtos.CreateCheatsheetRequest
  * @success 201 {object} map[string]string{"message": "All Cheatsheets created successfully"}
  * @failure 400 {object} map[string]string{"error": "Failed to create cheatsheets"}
- * @router /cheatsheets/create/bulk [post]
+ * @router /api/cheatsheets/bulk [post]
  */
 func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
 	var req dtos.BulkCreateCheatsheetRequest
@@ -80,7 +80,7 @@ func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
  * @failure 400 {object} map[string]string{"error": "ID parameter is required"}
  * @failure 404 {object} map[string]string{"error": "Cheatsheet not found for id: {id}"}
  * @failure 500 {object} map[string]string{"error": "Failed to fetch cheatsheet"}
- * @router /cheatsheets/{id} [get]
+ * @router /api/cheatsheets/{id} [get]
  */
 func (h *CheatsheetsHandler) GetCheatsheetByID(c *gin.Context) {
 	id := c.Param("id")
@@ -115,7 +115,7 @@ func (h *CheatsheetsHandler) GetCheatsheetByID(c *gin.Context) {
  * @failure 400 {object} map[string]string{"error": "Slug parameter is required"}
  * @failure 404 {object} map[string]string{"error": "Cheatsheet not found for slug: {slug}"}
  * @failure 500 {object} map[string]string{"error": "Failed to fetch cheatsheet"}
- * @router /cheatsheets/{slug} [get]
+ * @router /api/cheatsheets/{slug} [get]
  */
 func (h *CheatsheetsHandler) GetCheatsheetBySlug(c *gin.Context) {
 	slug := c.Param("slug")
@@ -149,7 +149,7 @@ func (h *CheatsheetsHandler) GetCheatsheetBySlug(c *gin.Context) {
  * @param subcategory query string false "Subcategory filter"
  * @success 200 {object} map[string]interface{}{"cheatsheets": []repository.Cheatsheet}
  * @failure 500 {object} map[string]string{"error": "Failed to fetch cheatsheets"}
- * @router /cheatsheets [get]
+ * @router /api/cheatsheets [get]
  */
 func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	// add query params for category, subcategory etc.
@@ -176,7 +176,7 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
  * @success 200 {object} map[string]string{"message": "Cheatsheet updated successfully"}
  * @failure 400 {object} map[string]string{"error": "ID parameter is required"}
  * @failure 500 {object} map[string]string{"error": "Failed to update cheatsheet"}
- * @router /cheatsheets/update/{id} [put]
+ * @router /api/cheatsheets/{id} [put]
  */
 func (h *CheatsheetsHandler) UpdateCheatsheet(c *gin.Context) {
 	id := c.Param("id")
