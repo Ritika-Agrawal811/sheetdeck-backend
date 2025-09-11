@@ -168,3 +168,37 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"cheatsheets": cheatsheets})
 }
+
+/**
+ * Update a cheatsheet by ID
+ * @param id path string true "Cheatsheet ID"
+ * @param cheatsheet body dtos.UpdateCheatsheetRequest
+ * @success 200 {object} map[string]string{"message": "Cheatsheet updated successfully"}
+ * @failure 400 {object} map[string]string{"error": "ID parameter is required"}
+ * @failure 500 {object} map[string]string{"error": "Failed to update cheatsheet"}
+ * @router /cheatsheets/update/{id} [put]
+ */
+func (h *CheatsheetsHandler) UpdateCheatsheet(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID parameter is required"})
+		return
+	}
+
+	var req dtos.UpdateCheatsheetRequest
+	if err := c.Bind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request : %v", err.Error())})
+		return
+	}
+
+	// Create a context with 5 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.service.UpdateCheatsheet(ctx, id, req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update cheatsheet: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Cheatsheet updated successfully"})
+}

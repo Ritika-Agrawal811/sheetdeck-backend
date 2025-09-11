@@ -11,3 +11,11 @@ type CreateCheatsheetRequest struct {
 type BulkCreateCheatsheetRequest struct {
 	Cheatsheets []CreateCheatsheetRequest `json:"cheatsheets" binding:"required,dive,required"`
 }
+
+type UpdateCheatsheetRequest struct {
+	Slug        string `json:"slug"`
+	Title       string `json:"title"`
+	Category    string `json:"category"`
+	SubCategory string `json:"subcategory"`
+	ImageURL    string `json:"image_url"`
+}
