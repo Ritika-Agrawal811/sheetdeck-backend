@@ -128,3 +128,35 @@ func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams
 	}
 	return items, nil
 }
+
+const updateCheatsheet = `-- name: UpdateCheatsheet :exec
+UPDATE cheatsheets
+SET slug = COALESCE(NULLIF($1::varchar, ''), slug),
+    title = COALESCE(NULLIF($2::text, ''), title),
+    category = COALESCE(NULLIF($3, '')::category, category),
+    subcategory = COALESCE(NULLIF($4, '')::subcategory, subcategory),
+    image_url = COALESCE(NULLIF($5::text, ''), image_url),
+    updated_at = NOW()
+WHERE id = $6
+`
+
+type UpdateCheatsheetParams struct {
+	Slug        string      `json:"slug"`
+	Title       string      `json:"title"`
+	Category    interface{} `json:"category"`
+	Subcategory interface{} `json:"subcategory"`
+	ImageUrl    string      `json:"image_url"`
+	ID          pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateCheatsheet(ctx context.Context, arg UpdateCheatsheetParams) error {
+	_, err := q.db.Exec(ctx, updateCheatsheet,
+		arg.Slug,
+		arg.Title,
+		arg.Category,
+		arg.Subcategory,
+		arg.ImageUrl,
+		arg.ID,
+	)
+	return err
+}

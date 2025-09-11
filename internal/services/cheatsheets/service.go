@@ -16,6 +16,7 @@ type CheatsheetsService interface {
 	GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error)
 	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.Cheatsheet, error)
+	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest) error
 }
 
 type cheatsheetsService struct {
@@ -126,4 +127,32 @@ func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category str
 	}
 
 	return cheatsheets, nil
+}
+
+/**
+ * Update an existing cheatsheet
+ * @param id string
+ * @param details dtos.UpdateCheatsheetRequest
+ * @return error
+ */
+func (s *cheatsheetsService) UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest) error {
+	cheatsheetID, err := utils.StringToUUID(id)
+	if err != nil {
+		return fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	updateParams := repository.UpdateCheatsheetParams{
+		ID:          cheatsheetID,
+		Slug:        details.Slug,
+		Title:       details.Title,
+		Category:    repository.NullCategory{Category: repository.Category(details.Category), Valid: details.Category != ""},
+		Subcategory: repository.NullSubcategory{Subcategory: repository.Subcategory(details.SubCategory), Valid: details.SubCategory != ""},
+		ImageUrl:    details.ImageURL,
+	}
+
+	if err := s.repo.UpdateCheatsheet(ctx, updateParams); err != nil {
+		return fmt.Errorf("failed to update cheatsheet: %w", err)
+	}
+
+	return nil
 }
