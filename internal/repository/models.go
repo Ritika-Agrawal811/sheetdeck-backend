@@ -115,3 +115,12 @@ type Cheatsheet struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
+
+type Pageview struct {
+	ID        pgtype.UUID      `json:"id"`
+	Pathname  string           `json:"pathname"`
+	IpAddress string           `json:"ip_address"`
+	UserAgent string           `json:"user_agent"`
+	Referrer  pgtype.Text      `json:"referrer"`
+	ViewedAt  pgtype.Timestamp `json:"viewed_at"`
+}
