@@ -5,9 +5,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func setupCheatsheetsRoutes(router *gin.Engine, services *ServicesContainer) {
+func setupCheatsheetsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	cheatsheetsHandler := handlers.NewCheatsheetsHandler(services.CheatsheetsService)
-	cheatsheetsGroup := router.Group("/api/cheatsheets")
+	cheatsheetsGroup := apiGroup.Group("/cheatsheets")
 
 	cheatsheetsGroup.GET("", cheatsheetsHandler.GetAllCheatsheets)
 	cheatsheetsGroup.GET("/:id", cheatsheetsHandler.GetCheatsheetByID)

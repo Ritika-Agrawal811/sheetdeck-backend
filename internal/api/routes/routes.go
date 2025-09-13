@@ -22,7 +22,7 @@ func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
 	}
 }
 
-func SetupRoutes(router *gin.Engine, services *ServicesContainer) {
-	setupCheatsheetsRoutes(router, services)
-	setupAnalyticsRoutes(router, services)
+func SetupRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
+	setupCheatsheetsRoutes(apiGroup, services)
+	setupAnalyticsRoutes(apiGroup, services)
 }
