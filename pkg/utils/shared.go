@@ -1,6 +1,8 @@
 package utils
 
-import "os"
+import (
+	"os"
+)
 
 // Helper function to get environment variables with fallback.
 func GetEnv(key, fallback string) string {
