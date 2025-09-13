@@ -5,9 +5,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func setupAnalyticsRoutes(router *gin.Engine, services *ServicesContainer) {
+func setupAnalyticsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	analyticsHandler := handlers.NewAnalyticsHandler(services.AnalyticsService)
-	analyticsGroup := router.Group("/api/analytics")
+	analyticsGroup := apiGroup.Group("/analytics")
 
 	analyticsGroup.POST("/pageview", analyticsHandler.RecordPageView)
 

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/api/middlewares"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/api/routes"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/infra/db"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
@@ -22,6 +23,7 @@ import (
 type Config struct {
 	Port           string
 	AllowedOrigins []string
+	APIKeys        []string
 	Environment    string
 	SSLRedirect    bool
 	ReadTimeout    time.Duration
@@ -39,6 +41,7 @@ func loadConfig() (*Config, error) {
 
 	// set ALLOWED_ORIGINS
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	apiKeys := os.Getenv("API_KEYS")
 
 	sslRedirect := true
 	if env == "TEST" {
@@ -50,6 +53,7 @@ func loadConfig() (*Config, error) {
 		Environment:    os.Getenv("ENV"),
 		SSLRedirect:    sslRedirect,
 		AllowedOrigins: strings.Split(allowedOrigins, ","),
+		APIKeys:        strings.Split(apiKeys, ","),
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
@@ -61,7 +65,7 @@ func loadConfig() (*Config, error) {
  * @param *Config Configuration settings
  * @return *gin.Engine Configured Gin engine
  */
-func initGin(cfg *Config) *gin.Engine {
+func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 	// Set Gin to release mode in production, which disables debug output and improves performance.
 	if cfg.Environment == "PROD" {
 		gin.SetMode(gin.ReleaseMode)
@@ -102,7 +106,7 @@ func initGin(cfg *Config) *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.AllowedOrigins,
 		AllowMethods: []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "Cookie", "Set-Cookie", "X-Requested-With"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "Cookie", "Set-Cookie", "X-Requested-With", "X-API-Key"},
 		MaxAge:       12 * time.Hour,
 	}))
 
@@ -111,7 +115,11 @@ func initGin(cfg *Config) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
 
-	return r
+	// Create API group with middleware
+	apiGroup := r.Group("/api")
+	apiGroup.Use(middlewares.APIKeyMiddleware(cfg.APIKeys))
+
+	return r, apiGroup
 }
 
 func main() {
@@ -129,7 +137,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Initialize Gin engine
-	r := initGin(cfg)
+	r, apiGroup := initGin(cfg)
 
 	// Create HTTP server with timeouts and max header bytes
 	srv := &http.Server{
@@ -151,7 +159,7 @@ func main() {
 	services := routes.NewServicesContainer(repo)
 
 	// Setup routes with services
-	routes.SetupRoutes(r, services)
+	routes.SetupRoutes(apiGroup, services)
 
 	// Channel for server errors
 	serverErr := make(chan error, 1)
