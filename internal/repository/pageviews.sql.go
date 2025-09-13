@@ -12,13 +12,17 @@ import (
 )
 
 const storePageview = `-- name: StorePageview :exec
-INSERT INTO pageviews (pathname, ip_address, user_agent, referrer)
-VALUES ($1, $2, $3, $4)
+INSERT INTO pageviews (pathname, hashed_ip, country, browser, os, device, user_agent, referrer)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type StorePageviewParams struct {
 	Pathname  string      `json:"pathname"`
-	IpAddress string      `json:"ip_address"`
+	HashedIp  string      `json:"hashed_ip"`
+	Country   pgtype.Text `json:"country"`
+	Browser   pgtype.Text `json:"browser"`
+	Os        pgtype.Text `json:"os"`
+	Device    pgtype.Text `json:"device"`
 	UserAgent string      `json:"user_agent"`
 	Referrer  pgtype.Text `json:"referrer"`
 }
@@ -26,7 +30,11 @@ type StorePageviewParams struct {
 func (q *Queries) StorePageview(ctx context.Context, arg StorePageviewParams) error {
 	_, err := q.db.Exec(ctx, storePageview,
 		arg.Pathname,
-		arg.IpAddress,
+		arg.HashedIp,
+		arg.Country,
+		arg.Browser,
+		arg.Os,
+		arg.Device,
 		arg.UserAgent,
 		arg.Referrer,
 	)

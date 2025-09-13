@@ -119,7 +119,11 @@ type Cheatsheet struct {
 type Pageview struct {
 	ID        pgtype.UUID      `json:"id"`
 	Pathname  string           `json:"pathname"`
-	IpAddress string           `json:"ip_address"`
+	HashedIp  string           `json:"hashed_ip"`
+	Country   pgtype.Text      `json:"country"`
+	Browser   pgtype.Text      `json:"browser"`
+	Os        pgtype.Text      `json:"os"`
+	Device    pgtype.Text      `json:"device"`
 	UserAgent string           `json:"user_agent"`
 	Referrer  pgtype.Text      `json:"referrer"`
 	ViewedAt  pgtype.Timestamp `json:"viewed_at"`

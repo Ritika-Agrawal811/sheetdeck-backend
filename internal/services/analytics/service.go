@@ -2,11 +2,16 @@ package analytics
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"log"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/geo"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/utils"
+	"github.com/mssola/user_agent"
 )
 
 type AnalyticsService interface {
@@ -14,12 +19,17 @@ type AnalyticsService interface {
 }
 
 type analyticsService struct {
-	repo *repository.Queries
+	repo   *repository.Queries
+	geoSdk *geo.IpInfoSdk
 }
 
 func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
+
+	geoSdk := geo.NewGeoSdk()
+
 	return &analyticsService{
-		repo: repo,
+		repo:   repo,
+		geoSdk: geoSdk,
 	}
 }
 
@@ -33,10 +43,21 @@ func (s *analyticsService) RecordPageView(ctx context.Context, details dtos.Page
 		return nil
 	}
 
+	browser, os, device := parseUserAgent(details.UserAgent)
+
+	country, err := s.geoSdk.FetchCountry(details.IpAddress)
+	if err != nil {
+		return fmt.Errorf("failed to lookup geo info: %w", err)
+	}
+
 	pageViewParams := repository.StorePageviewParams{
 		Pathname:  details.Route,
-		IpAddress: details.IpAddress,
+		Browser:   utils.PgText(browser),
+		Os:        utils.PgText(os),
+		Device:    utils.PgText(device),
+		HashedIp:  hashIP(details.IpAddress),
 		UserAgent: details.UserAgent,
+		Country:   utils.PgText(country),
 		Referrer:  utils.PgText(details.Referrer),
 	}
 
@@ -45,4 +66,44 @@ func (s *analyticsService) RecordPageView(ctx context.Context, details dtos.Page
 	}
 
 	return nil
+}
+
+/**
+ * Parse user agent string to extract browser, OS, and device type
+ * @param uaString string
+ * @return browser, os, device string
+ */
+func parseUserAgent(uaString string) (browser, os, device string) {
+	ua := user_agent.New(uaString)
+
+	// Browser
+	browserName, _ := ua.Browser()
+
+	// OS
+	os = ua.OS()
+
+	// Device
+	if ua.Mobile() {
+		device = "mobile"
+	} else {
+		device = "desktop"
+	}
+
+	return browserName, os, device
+}
+
+/**
+ * Hash IP address with a salt from environment variable
+ * @param ip string
+ * @return hashed IP string
+ */
+func hashIP(ip string) string {
+	salt := utils.GetEnv("IP_HASH_SALT", "")
+	if salt == "" {
+		log.Fatal("IP_HASH_SALT is not set in environment")
+	}
+
+	h := sha256.New()
+	h.Write([]byte(ip + salt))
+	return hex.EncodeToString(h.Sum(nil))
 }
