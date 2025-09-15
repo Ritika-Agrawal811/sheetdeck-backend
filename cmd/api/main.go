@@ -23,7 +23,6 @@ import (
 type Config struct {
 	Port           string
 	AllowedOrigins []string
-	APIKeys        []string
 	Environment    string
 	SSLRedirect    bool
 	ReadTimeout    time.Duration
@@ -39,9 +38,7 @@ func loadConfig() (*Config, error) {
 
 	env := os.Getenv("ENV")
 
-	// set ALLOWED_ORIGINS
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	apiKeys := os.Getenv("API_KEYS")
 
 	sslRedirect := true
 	if env == "TEST" {
@@ -53,7 +50,6 @@ func loadConfig() (*Config, error) {
 		Environment:    os.Getenv("ENV"),
 		SSLRedirect:    sslRedirect,
 		AllowedOrigins: strings.Split(allowedOrigins, ","),
-		APIKeys:        strings.Split(apiKeys, ","),
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
@@ -106,7 +102,7 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.AllowedOrigins,
 		AllowMethods: []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "Cookie", "Set-Cookie", "X-Requested-With", "X-API-Key"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "Cookie", "Set-Cookie", "X-Requested-With"},
 		MaxAge:       12 * time.Hour,
 	}))
 
@@ -117,9 +113,8 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 
 	// Create API group with middleware
 	apiGroup := r.Group("/api")
-	apiGroup.Use(middlewares.APIKeyMiddleware(cfg.APIKeys))
-
-	rateLimiter := middlewares.NewRateLimiterStore(15, time.Minute)
+	apiGroup.Use(middlewares.ValidateRequestMiddleware(cfg.AllowedOrigins))
+	rateLimiter := middlewares.NewRateLimiterStore(10, time.Minute)
 	apiGroup.Use(rateLimiter.RateLimitMiddleware())
 
 	return r, apiGroup
