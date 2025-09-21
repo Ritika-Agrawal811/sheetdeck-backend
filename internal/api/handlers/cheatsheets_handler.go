@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -24,22 +25,53 @@ func NewCheatsheetsHandler(service cheatsheets.CheatsheetsService) *CheatsheetsH
 /**
  * Create a new cheatsheet
  * @param cheatsheet body dtos.CreateCheatsheetRequest
+ * @param cheatsheet_image formData file true "Cheatsheet Image (WebP format only)"
  * @success 201 {object} map[string]string{"message": "Cheatsheet created successfully"}
  * @failure 400 {object} map[string]string{"error": "Failed to create cheatsheet"}
  * @router /api/cheatsheets [post]
  */
 func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
-	var req dtos.CreateCheatsheetRequest
-	if err := c.Bind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request : %v", err.Error())})
+	// Parse multipart form
+	if err := c.Request.ParseMultipartForm(2 << 20); err != nil { // 2MB limit for single file
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
 		return
 	}
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	form := c.Request.MultipartForm
+
+	// Get metadata from form field
+	metadataStr := form.Value["metadata"]
+	if len(metadataStr) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing metadata field"})
+		return
+	}
+
+	// Parse JSON metadata
+	var req dtos.CreateCheatsheetRequest
+	if err := json.Unmarshal([]byte(metadataStr[0]), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON"})
+		return
+	}
+
+	// Get the cheatsheet image from the form data
+	cheatsheetImage, header, err := c.Request.FormFile("cheatsheet_image")
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Cheatsheet image is required"})
+		return
+	}
+	defer cheatsheetImage.Close()
+
+	// Validate image type
+	if header.Header.Get("Content-Type") != "image/webp" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only WebP images are allowed"})
+		return
+	}
+
+	// Create a context with 10 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	if err := h.service.CreateCheatsheet(ctx, req); err != nil {
+	if err := h.service.CreateCheatsheet(ctx, req, cheatsheetImage); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create cheatsheet: %v", err.Error())})
 		return
 	}
@@ -50,27 +82,58 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 /**
  * Bulk create cheatsheets
  * @param cheatsheets body []dtos.CreateCheatsheetRequest
+ * @param cheatsheet_images formData file true "Cheatsheet Images (WebP format only, max 5 files)"
  * @success 201 {object} map[string]string{"message": "All Cheatsheets created successfully"}
  * @failure 400 {object} map[string]string{"error": "Failed to create cheatsheets"}
  * @router /api/cheatsheets/bulk [post]
  */
 func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
-	var req dtos.BulkCreateCheatsheetRequest
-	if err := c.Bind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request : %v", err.Error())})
+	// Parse multipart form (limit total to ~10 MB since max 5 files × 1 MB)
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
 		return
 	}
 
-	// Create a context with 10 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	form := c.Request.MultipartForm
+
+	// Get all files uploaded under the "cheatsheet_images" key
+	files := form.File["cheatsheet_images"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least 1 image is required"})
+		return
+	}
+	if len(files) > 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You can upload a maximum of 5 cheatsheets at once"})
+		return
+	}
+
+	// Get the metadata JSON string from form
+	metadataStr := form.Value["metadata"]
+	if len(metadataStr) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing metadata field"})
+		return
+	}
+
+	// Parse the JSON metadata into array of requests
+	var reqs []dtos.CreateCheatsheetRequest
+	if err := json.Unmarshal([]byte(metadataStr[0]), &reqs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON"})
+		return
+	}
+
+	// Validate that number of metadata entries matches number of files
+	if len(reqs) != len(files) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mismatch between metadata entries and uploaded files"})
+		return
+	}
+
+	// Create a context with 30 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	if err := h.service.BulkCreateCheatsheets(ctx, req.Cheatsheets); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create cheatsheets: %v", err.Error())})
-		return
-	}
+	results := h.service.BulkCreateCheatsheets(ctx, reqs, files)
 
-	c.JSON(http.StatusCreated, gin.H{"message": "All Cheatsheets created successfully"})
+	c.JSON(http.StatusCreated, gin.H{"results": results})
 }
 
 /**
