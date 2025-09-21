@@ -2,17 +2,19 @@ package cheatsheets
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log"
+	"mime/multipart"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/storage"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/utils"
 )
 
 type CheatsheetsService interface {
-	CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest) error
-	BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest) error
+	CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest, image multipart.File) error
+	BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest, files []*multipart.FileHeader) []string
 	GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error)
 	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.Cheatsheet, error)
@@ -20,12 +22,19 @@ type CheatsheetsService interface {
 }
 
 type cheatsheetsService struct {
-	repo *repository.Queries
+	repo       *repository.Queries
+	storageSdk *storage.StorageSdk
 }
 
 func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
+	storageSdk, err := storage.NewStorageSdk()
+	if err != nil {
+		log.Fatal("Warning: Storage SDK not configured:", err)
+	}
+
 	return &cheatsheetsService{
-		repo: repo,
+		repo:       repo,
+		storageSdk: storageSdk,
 	}
 }
 
@@ -34,23 +43,42 @@ func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
  * @param details dtos.CreateCheatsheetRequest
  * @return error
  */
-func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest) error {
-
-	if details.Slug == "" || details.Title == "" {
-		return errors.New("slug and title are required")
+func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest, image multipart.File) error {
+	// Validate required fields
+	if details.Slug == "" || details.Title == "" || details.Category == "" || details.SubCategory == "" {
+		return fmt.Errorf("missing required fields")
 	}
 
-	if details.Category == "" || details.SubCategory == "" {
-		return errors.New("category and subcategory are required")
+	// Create channels for concurrent operations
+	type UploadResult struct {
+		imageUrl string
+		err      error
 	}
+
+	uploadChan := make(chan UploadResult, 1)
+
+	// Upload image to Supabase Storage
+	go func() {
+		fileName := fmt.Sprintf("%s/%s/%s.webp", details.Category, details.SubCategory, details.Slug)
+		imageUrl, err := s.storageSdk.UploadFile(fileName, image)
+		uploadChan <- UploadResult{imageUrl, err}
+	}()
 
 	cheatsheetDetails := repository.CreateCheatsheetParams{
 		Slug:        details.Slug,
 		Title:       details.Title,
 		Category:    repository.Category(details.Category),
 		Subcategory: repository.Subcategory(details.SubCategory),
-		ImageUrl:    utils.PgText(details.ImageURL),
 	}
+
+	// Wait for upload to complete
+	uploadRes := <-uploadChan
+	if uploadRes.err != nil {
+		return fmt.Errorf("failed to upload cheatsheet image: %w", uploadRes.err)
+	}
+
+	// Set the image URL
+	cheatsheetDetails.ImageUrl = utils.PgText(uploadRes.imageUrl)
 
 	if err := s.repo.CreateCheatsheet(ctx, cheatsheetDetails); err != nil {
 		return fmt.Errorf("failed to create cheatsheet: %w", err)
@@ -62,15 +90,44 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 /**
  * Bulk create cheatsheets
  * @param details []dtos.CreateCheatsheetRequest
+ * @param files []*multipart.FileHeader
  * @return error
  */
-func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest) error {
-	for _, cheatsheet := range details {
-		if err := s.CreateCheatsheet(ctx, cheatsheet); err != nil {
-			return err
+func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest, files []*multipart.FileHeader) []string {
+
+	// Process each file with its corresponding metadata
+	results := make([]string, 0, len(files))
+
+	for i, fileHeader := range files {
+		// Enforce max 1 MB per file
+		if fileHeader.Size > 1<<20 {
+			results = append(results, fmt.Sprintf("File too large: %s (max 1 MB)", fileHeader.Filename))
+			continue
+		}
+
+		// Open the file
+		file, err := fileHeader.Open()
+		if err != nil {
+			results = append(results, fmt.Sprintf("Failed to open file %s", fileHeader.Filename))
+			continue
+		}
+		defer file.Close()
+
+		// Validate file type - only allow WebP
+		if fileHeader.Header.Get("Content-Type") != "image/webp" {
+			results = append(results, fmt.Sprintf("Invalid file type for %s (only WebP allowed)", fileHeader.Filename))
+			continue
+		}
+
+		// Call existing single cheatsheet service
+		if err := s.CreateCheatsheet(ctx, details[i], file); err != nil {
+			results = append(results, fmt.Sprintf("Failed: %s (%v)", details[i].Title, err))
+		} else {
+			results = append(results, fmt.Sprintf("Success: %s", details[i].Title))
 		}
 	}
-	return nil
+
+	return results
 }
 
 /**

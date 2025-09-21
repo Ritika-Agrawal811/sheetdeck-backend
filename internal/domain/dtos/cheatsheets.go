@@ -5,11 +5,6 @@ type CreateCheatsheetRequest struct {
 	Title       string `json:"title" binding:"required"`
 	Category    string `json:"category" binding:"required"`
 	SubCategory string `json:"subcategory" binding:"required"`
-	ImageURL    string `json:"image_url"`
-}
-
-type BulkCreateCheatsheetRequest struct {
-	Cheatsheets []CreateCheatsheetRequest `json:"cheatsheets" binding:"required,dive,required"`
 }
 
 type UpdateCheatsheetRequest struct {
