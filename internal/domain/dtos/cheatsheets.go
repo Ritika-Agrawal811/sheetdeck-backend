@@ -1,6 +1,6 @@
 package dtos
 
-type CreateCheatsheetRequest struct {
+type Cheatsheet struct {
 	Slug        string `json:"slug" binding:"required"`
 	Title       string `json:"title" binding:"required"`
 	Category    string `json:"category" binding:"required"`
@@ -12,5 +12,4 @@ type UpdateCheatsheetRequest struct {
 	Title       string `json:"title"`
 	Category    string `json:"category"`
 	SubCategory string `json:"subcategory"`
-	ImageURL    string `json:"image_url"`
 }

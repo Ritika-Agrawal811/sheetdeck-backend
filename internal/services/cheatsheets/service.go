@@ -5,20 +5,22 @@ import (
 	"fmt"
 	"log"
 	"mime/multipart"
+	"strings"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/entities"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/storage"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/utils"
 )
 
 type CheatsheetsService interface {
-	CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest, image multipart.File) error
-	BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest, files []*multipart.FileHeader) []string
+	CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File) error
+	BulkCreateCheatsheets(ctx context.Context, details []dtos.Cheatsheet, files []*multipart.FileHeader) []string
 	GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error)
 	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.Cheatsheet, error)
-	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest) error
+	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest, image multipart.File) error
 }
 
 type cheatsheetsService struct {
@@ -40,29 +42,14 @@ func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
 
 /**
  * Create a new cheatsheet
- * @param details dtos.CreateCheatsheetRequest
+ * @param details dtos.Cheatsheet
  * @return error
  */
-func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.CreateCheatsheetRequest, image multipart.File) error {
+func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File) error {
 	// Validate required fields
 	if details.Slug == "" || details.Title == "" || details.Category == "" || details.SubCategory == "" {
 		return fmt.Errorf("missing required fields")
 	}
-
-	// Create channels for concurrent operations
-	type UploadResult struct {
-		imageUrl string
-		err      error
-	}
-
-	uploadChan := make(chan UploadResult, 1)
-
-	// Upload image to Supabase Storage
-	go func() {
-		fileName := fmt.Sprintf("%s/%s/%s.webp", details.Category, details.SubCategory, details.Slug)
-		imageUrl, err := s.storageSdk.UploadFile(fileName, image)
-		uploadChan <- UploadResult{imageUrl, err}
-	}()
 
 	cheatsheetDetails := repository.CreateCheatsheetParams{
 		Slug:        details.Slug,
@@ -71,14 +58,18 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 		Subcategory: repository.Subcategory(details.SubCategory),
 	}
 
-	// Wait for upload to complete
-	uploadRes := <-uploadChan
-	if uploadRes.err != nil {
-		return fmt.Errorf("failed to upload cheatsheet image: %w", uploadRes.err)
+	// Upload image to Supabase Storage
+	filePath := &entities.FilePaths{
+		NewPath: fmt.Sprintf("%s/%s/%s.webp", details.Category, details.SubCategory, details.Slug),
+	}
+
+	imageUrl, err := s.uploadCheatsheetImage(image, filePath, "upload")
+	if err != nil {
+		return err
 	}
 
 	// Set the image URL
-	cheatsheetDetails.ImageUrl = utils.PgText(uploadRes.imageUrl)
+	cheatsheetDetails.ImageUrl = utils.PgText(imageUrl)
 
 	if err := s.repo.CreateCheatsheet(ctx, cheatsheetDetails); err != nil {
 		return fmt.Errorf("failed to create cheatsheet: %w", err)
@@ -89,11 +80,11 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 
 /**
  * Bulk create cheatsheets
- * @param details []dtos.CreateCheatsheetRequest
+ * @param details []dtos.Cheatsheet
  * @param files []*multipart.FileHeader
  * @return error
  */
-func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details []dtos.CreateCheatsheetRequest, files []*multipart.FileHeader) []string {
+func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details []dtos.Cheatsheet, files []*multipart.FileHeader) []string {
 
 	// Process each file with its corresponding metadata
 	results := make([]string, 0, len(files))
@@ -189,10 +180,10 @@ func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category str
 /**
  * Update an existing cheatsheet
  * @param id string
- * @param details dtos.UpdateCheatsheetRequest
+ * @param details dtos.Cheatsheet
  * @return error
  */
-func (s *cheatsheetsService) UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest) error {
+func (s *cheatsheetsService) UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest, image multipart.File) error {
 	cheatsheetID, err := utils.StringToUUID(id)
 	if err != nil {
 		return fmt.Errorf("invalid UUID format: %w", err)
@@ -204,7 +195,28 @@ func (s *cheatsheetsService) UpdateCheatsheet(ctx context.Context, id string, de
 		Title:       details.Title,
 		Category:    repository.NullCategory{Category: repository.Category(details.Category), Valid: details.Category != ""},
 		Subcategory: repository.NullSubcategory{Subcategory: repository.Subcategory(details.SubCategory), Valid: details.SubCategory != ""},
-		ImageUrl:    details.ImageURL,
+	}
+
+	// Only upload image is provided
+	if image != nil {
+		// Upload image to Supabase Storage
+		filePaths, err := s.createFilePathForUpdate(ctx, id, details.Category, details.SubCategory, details.Slug)
+		if err != nil {
+			return err
+		}
+
+		uploadType := "replace"
+		if strings.EqualFold(filePaths.NewPath, filePaths.OldPath) {
+			uploadType = "update"
+		}
+
+		imageUrl, err := s.uploadCheatsheetImage(image, filePaths, uploadType)
+		if err != nil {
+			return err
+		}
+
+		// Set the image URL in update params
+		updateParams.ImageUrl = imageUrl
 	}
 
 	if err := s.repo.UpdateCheatsheet(ctx, updateParams); err != nil {
@@ -212,4 +224,87 @@ func (s *cheatsheetsService) UpdateCheatsheet(ctx context.Context, id string, de
 	}
 
 	return nil
+}
+
+/**
+ * Uploads a cheatsheet image to Supabase Storage
+ * @param category string
+ * @param subCategory string
+ * @param slug string
+ * @param image multipart.File
+ * @return string (image URL), error
+ */
+func (s *cheatsheetsService) uploadCheatsheetImage(image multipart.File, filePaths *entities.FilePaths, uploadType string) (string, error) {
+	type UploadResult struct {
+		imageUrl string
+		err      error
+	}
+
+	uploadChan := make(chan UploadResult, 1)
+
+	// Upload image to Supabase Storage concurrently
+	go func() {
+
+		var imageUrl string
+		var err error
+
+		switch uploadType {
+		case "upload":
+			imageUrl, err = s.storageSdk.UploadFile(filePaths.NewPath, image)
+		case "update":
+			imageUrl, err = s.storageSdk.UpdateFileInPlace(filePaths.OldPath, image)
+		case "replace":
+			imageUrl, err = s.storageSdk.ReplaceFile(filePaths.OldPath, filePaths.NewPath, image)
+		}
+		uploadChan <- UploadResult{imageUrl, err}
+	}()
+
+	// Wait for upload to complete
+	uploadRes := <-uploadChan
+	if uploadRes.err != nil {
+		return "", fmt.Errorf("failed to upload cheatsheet image: %w", uploadRes.err)
+	}
+
+	return uploadRes.imageUrl, nil
+}
+
+/**
+ * Creates new and previous file paths for cheatsheet image for database storage
+ * @param id string - cheatsheet id
+ * @param category string
+ * @param subCategory string
+ * @param slug string
+ * @return *entities.FilePaths, error
+ */
+func (s *cheatsheetsService) createFilePathForUpdate(ctx context.Context, id string, category, subCategory, slug string) (*entities.FilePaths, error) {
+	uuid, err := utils.StringToUUID(id)
+	if err != nil {
+		return &entities.FilePaths{}, fmt.Errorf("failed to convert id to uuid")
+	}
+
+	cheatsheetDetails, err := s.repo.GetCheatsheetByID(ctx, uuid)
+	if err != nil {
+		return &entities.FilePaths{}, fmt.Errorf("failed to fetch previous cheat sheet details")
+	}
+
+	// Use provided values or fall back to database values
+	if category == "" {
+		category = string(cheatsheetDetails.Category)
+	}
+	if subCategory == "" {
+		subCategory = string(cheatsheetDetails.Subcategory)
+	}
+	if slug == "" {
+		slug = cheatsheetDetails.Slug
+	}
+
+	fileName := fmt.Sprintf("%s/%s/%s.webp", category, subCategory, slug)
+	prevFileName := fmt.Sprintf("%s/%s/%s.webp", cheatsheetDetails.Category, cheatsheetDetails.Subcategory, cheatsheetDetails.Slug)
+
+	results := &entities.FilePaths{
+		NewPath: fileName,
+		OldPath: prevFileName,
+	}
+
+	return results, nil
 }

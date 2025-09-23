@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -47,7 +48,7 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 	}
 
 	// Parse JSON metadata
-	var req dtos.CreateCheatsheetRequest
+	var req dtos.Cheatsheet
 	if err := json.Unmarshal([]byte(metadataStr[0]), &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON"})
 		return
@@ -67,8 +68,8 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 10 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	// Create a context with 15 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
 	if err := h.service.CreateCheatsheet(ctx, req, cheatsheetImage); err != nil {
@@ -115,7 +116,7 @@ func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
 	}
 
 	// Parse the JSON metadata into array of requests
-	var reqs []dtos.CreateCheatsheetRequest
+	var reqs []dtos.Cheatsheet
 	if err := json.Unmarshal([]byte(metadataStr[0]), &reqs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON"})
 		return
@@ -127,8 +128,8 @@ func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 30 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
 	results := h.service.BulkCreateCheatsheets(ctx, reqs, files)
@@ -219,8 +220,8 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	category := c.Query("category")
 	subcategory := c.Query("subcategory")
 
-	// Create a context with 10 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	// Create a context with 15 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
 	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory)
@@ -248,17 +249,54 @@ func (h *CheatsheetsHandler) UpdateCheatsheet(c *gin.Context) {
 		return
 	}
 
-	var req dtos.UpdateCheatsheetRequest
-	if err := c.Bind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request : %v", err.Error())})
+	// Parse multipart form
+	if err := c.Request.ParseMultipartForm(2 << 20); err != nil { // 2MB limit for single file
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form data"})
 		return
 	}
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	form := c.Request.MultipartForm
+
+	// Get metadata from form field
+	metadataStr := form.Value["metadata"]
+	if len(metadataStr) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing metadata field"})
+		return
+	}
+
+	// Parse JSON metadata
+	var req dtos.UpdateCheatsheetRequest
+	if err := json.Unmarshal([]byte(metadataStr[0]), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON"})
+		return
+	}
+
+	// Get the cheatsheet image from the form data
+	var cheatsheetImage multipart.File
+	cheatsheetImageFile, header, err := c.Request.FormFile("cheatsheet_image")
+	if err == nil {
+		defer cheatsheetImageFile.Close()
+
+		// Validate image type
+		if header.Header.Get("Content-Type") != "image/webp" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Only WebP images are allowed"})
+			return
+		}
+
+		// Validate file size (optional)
+		if header.Size > 1<<20 { // 1MB limit
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Image file too large (max 1MB)"})
+			return
+		}
+
+		cheatsheetImage = cheatsheetImageFile
+	}
+
+	// Create a context with 15 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	if err := h.service.UpdateCheatsheet(ctx, id, req); err != nil {
+	if err := h.service.UpdateCheatsheet(ctx, id, req, cheatsheetImage); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update cheatsheet: %v", err.Error())})
 		return
 	}
