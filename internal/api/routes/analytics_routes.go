@@ -10,5 +10,6 @@ func setupAnalyticsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer
 	analyticsGroup := apiGroup.Group("/analytics")
 
 	analyticsGroup.POST("/pageview", analyticsHandler.RecordPageView)
+	analyticsGroup.POST("/event", analyticsHandler.RecordEvent)
 
 }

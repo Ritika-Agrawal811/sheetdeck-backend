@@ -15,6 +15,7 @@ type Querier interface {
 	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (Cheatsheet, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsheet, error)
 	ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]Cheatsheet, error)
+	StoreEvent(ctx context.Context, arg StoreEventParams) error
 	StorePageview(ctx context.Context, arg StorePageviewParams) error
 	UpdateCheatsheet(ctx context.Context, arg UpdateCheatsheetParams) error
 }

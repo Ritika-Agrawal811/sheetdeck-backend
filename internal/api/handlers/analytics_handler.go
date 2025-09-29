@@ -50,3 +50,33 @@ func (h *AnalyticsHandler) RecordPageView(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Pageview recorded successfully"})
 }
+
+/**
+ * Record an event - click, download etc
+ * @param c *gin.Context
+ * @success 201 {object} map[string]string{"message": "Event recorded successfully"}
+ * @failure 400 {object} map[string]string{"error": "Failed to record event"}
+ * @router /api/analytics/event [post]
+ */
+func (h *AnalyticsHandler) RecordEvent(c *gin.Context) {
+	var req dtos.EventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request : %v", err.Error())})
+		return
+	}
+
+	// Extract IP address from the request context
+	req.IpAddress = c.ClientIP()
+
+	// Create a context with 5 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.service.RecordEvent(ctx, req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to record event: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Event recorded successfully"})
+
+}

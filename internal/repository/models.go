@@ -55,6 +55,51 @@ func (ns NullCategory) Value() (driver.Value, error) {
 	return string(ns.Category), nil
 }
 
+type EventType string
+
+const (
+	EventTypeView     EventType = "view"
+	EventTypeClick    EventType = "click"
+	EventTypeDownload EventType = "download"
+	EventTypeSearch   EventType = "search"
+	EventTypeCopyCode EventType = "copy_code"
+)
+
+func (e *EventType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventType(s)
+	case string:
+		*e = EventType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventType: %T", src)
+	}
+	return nil
+}
+
+type NullEventType struct {
+	EventType EventType `json:"event_type"`
+	Valid     bool      `json:"valid"` // Valid is true if EventType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventType) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventType), nil
+}
+
 type Subcategory string
 
 const (
@@ -114,6 +159,15 @@ type Cheatsheet struct {
 	ImageUrl    pgtype.Text        `json:"image_url"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Event struct {
+	ID           pgtype.UUID      `json:"id"`
+	CheatsheetID pgtype.UUID      `json:"cheatsheet_id"`
+	EventType    EventType        `json:"event_type"`
+	Pathname     string           `json:"pathname"`
+	HashedIp     string           `json:"hashed_ip"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
 }
 
 type Pageview struct {

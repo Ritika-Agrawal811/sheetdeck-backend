@@ -16,6 +16,7 @@ import (
 
 type AnalyticsService interface {
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
+	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
 
 type analyticsService struct {
@@ -63,6 +64,36 @@ func (s *analyticsService) RecordPageView(ctx context.Context, details dtos.Page
 
 	if err := s.repo.StorePageview(ctx, pageViewParams); err != nil {
 		return fmt.Errorf("failed to record pageview: %w", err)
+	}
+
+	return nil
+}
+
+/**
+ * Record an event - click, download etc
+ * @param details dtos.EventRequest
+ * @return error
+ */
+func (s *analyticsService) RecordEvent(ctx context.Context, details dtos.EventRequest) error {
+	if details.IpAddress == "" {
+		return nil
+	}
+
+	/* get cheatsheet id from database */
+	data, err := s.repo.GetCheatsheetBySlug(ctx, details.CheatsheetSlug)
+	if err != nil {
+		return fmt.Errorf("failed to fetch cheatsheet id")
+	}
+
+	eventsParams := repository.StoreEventParams{
+		CheatsheetID: data.ID,
+		EventType:    repository.EventType(details.EventType),
+		Pathname:     details.Route,
+		HashedIp:     hashIP(details.IpAddress),
+	}
+
+	if err := s.repo.StoreEvent(ctx, eventsParams); err != nil {
+		return fmt.Errorf("failed to record event: %w", err)
 	}
 
 	return nil
