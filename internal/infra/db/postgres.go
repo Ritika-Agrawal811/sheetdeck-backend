@@ -35,7 +35,7 @@ func InitPostgresClient() *PostgresClient {
 
 // connectPostgres sets up a new connection to the PostgreSQL database.
 func connectPostgres() *pgxpool.Pool {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require&pgbouncer=true",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require&pool_mode=session",
 		utils.GetEnv("POSTGRES_USER", "user"),
 		utils.GetEnv("POSTGRES_PASSWORD", "password"),
 		utils.GetEnv("POSTGRES_HOST", "localhost"),
@@ -52,14 +52,14 @@ func connectPostgres() *pgxpool.Pool {
 	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	// Set the connection pool configuration
-	config.MaxConns = 1
-	config.MinConns = 0
+	config.MaxConns = 5
+	config.MinConns = 1
 	config.MaxConnLifetime = time.Hour
 	config.MaxConnIdleTime = time.Minute * 5
 	config.HealthCheckPeriod = time.Minute
 
 	// 🔥 Add connection timeout
-	config.ConnConfig.ConnectTimeout = 15 * time.Second
+	config.ConnConfig.ConnectTimeout = 30 * time.Second
 
 	// Retry logic with exponential backoff
 	var pool *pgxpool.Pool
@@ -77,7 +77,7 @@ func connectPostgres() *pgxpool.Pool {
 		}
 
 		// Check the connection with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		err = pool.Ping(ctx)
 		cancel()
 
