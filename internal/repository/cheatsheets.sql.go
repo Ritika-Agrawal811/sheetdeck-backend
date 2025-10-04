@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCheatsheetsByCategoryAndSubcategory = `-- name: CountCheatsheetsByCategoryAndSubcategory :many
+SELECT category, subcategory, COUNT(DISTINCT id) AS cheatsheet_count
+FROM cheatsheets
+GROUP BY category, subcategory
+`
+
+type CountCheatsheetsByCategoryAndSubcategoryRow struct {
+	Category        Category    `json:"category"`
+	Subcategory     Subcategory `json:"subcategory"`
+	CheatsheetCount int64       `json:"cheatsheet_count"`
+}
+
+func (q *Queries) CountCheatsheetsByCategoryAndSubcategory(ctx context.Context) ([]CountCheatsheetsByCategoryAndSubcategoryRow, error) {
+	rows, err := q.db.Query(ctx, countCheatsheetsByCategoryAndSubcategory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountCheatsheetsByCategoryAndSubcategoryRow{}
+	for rows.Next() {
+		var i CountCheatsheetsByCategoryAndSubcategoryRow
+		if err := rows.Scan(&i.Category, &i.Subcategory, &i.CheatsheetCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createCheatsheet = `-- name: CreateCheatsheet :exec
 INSERT INTO cheatsheets (slug, title, category, subcategory, image_url)
 VALUES ($1, $2, $3, $4, $5)
@@ -33,6 +65,62 @@ func (q *Queries) CreateCheatsheet(ctx context.Context, arg CreateCheatsheetPara
 		arg.ImageUrl,
 	)
 	return err
+}
+
+const getCategories = `-- name: GetCategories :many
+SELECT unnest(enum_range(NULL::category))::varchar as categories
+`
+
+func (q *Queries) GetCategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, getCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var categories string
+		if err := rows.Scan(&categories); err != nil {
+			return nil, err
+		}
+		items = append(items, categories)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCategoryDetails = `-- name: GetCategoryDetails :many
+SELECT category, COUNT(DISTINCT id) AS cheatsheet_count, ARRAY_AGG(DISTINCT subcategory)::varchar[] AS subcategories
+FROM cheatsheets
+GROUP BY category
+`
+
+type GetCategoryDetailsRow struct {
+	Category        Category `json:"category"`
+	CheatsheetCount int64    `json:"cheatsheet_count"`
+	Subcategories   []string `json:"subcategories"`
+}
+
+func (q *Queries) GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsRow, error) {
+	rows, err := q.db.Query(ctx, getCategoryDetails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCategoryDetailsRow{}
+	for rows.Next() {
+		var i GetCategoryDetailsRow
+		if err := rows.Scan(&i.Category, &i.CheatsheetCount, &i.Subcategories); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCheatsheetByID = `-- name: GetCheatsheetByID :one
@@ -77,6 +165,41 @@ func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsh
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getSubcategories = `-- name: GetSubcategories :many
+SELECT unnest(enum_range(NULL::subcategory))::varchar as subcategories
+`
+
+func (q *Queries) GetSubcategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, getSubcategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var subcategories string
+		if err := rows.Scan(&subcategories); err != nil {
+			return nil, err
+		}
+		items = append(items, subcategories)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTotalCheasheetsCount = `-- name: GetTotalCheasheetsCount :one
+Select COUNT(id) from cheatsheets
+`
+
+func (q *Queries) GetTotalCheasheetsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getTotalCheasheetsCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const listCheatsheets = `-- name: ListCheatsheets :many
