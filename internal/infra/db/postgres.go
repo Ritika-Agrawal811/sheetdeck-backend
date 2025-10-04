@@ -35,12 +35,12 @@ func InitPostgresClient() *PostgresClient {
 
 // connectPostgres sets up a new connection to the PostgreSQL database.
 func connectPostgres() *pgxpool.Pool {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require&pgbouncer=true",
 		utils.GetEnv("POSTGRES_USER", "user"),
 		utils.GetEnv("POSTGRES_PASSWORD", "password"),
 		utils.GetEnv("POSTGRES_HOST", "localhost"),
-		utils.GetEnv("POSTGRES_PORT", "5432"),
-		utils.GetEnv("POSTGRES_DB", "dbname"),
+		utils.GetEnv("POSTGRES_PORT", "6543"),
+		utils.GetEnv("POSTGRES_DB", "postgres"),
 	)
 
 	config, err := pgxpool.ParseConfig(dsn)
@@ -52,19 +52,47 @@ func connectPostgres() *pgxpool.Pool {
 	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	// Set the connection pool configuration
-	config.MaxConns = 10
-	config.MinConns = 1
+	config.MaxConns = 1
+	config.MinConns = 0
+	config.MaxConnLifetime = time.Hour
+	config.MaxConnIdleTime = time.Minute * 5
 	config.HealthCheckPeriod = time.Minute
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-	if err != nil {
-		log.Fatal().Msgf("Unable to create PostgreSQL pool: %v", err)
-	}
+	// 🔥 Add connection timeout
+	config.ConnConfig.ConnectTimeout = 15 * time.Second
 
-	// Check the connection
-	err = pool.Ping(context.Background())
-	if err != nil {
-		log.Fatal().Msgf("Failed to connect to PostgreSQL: %v", err)
+	// Retry logic with exponential backoff
+	var pool *pgxpool.Pool
+	maxRetries := 5
+
+	for i := 0; i < maxRetries; i++ {
+		pool, err = pgxpool.NewWithConfig(context.Background(), config)
+		if err != nil {
+			log.Warn().Msgf("Attempt %d: Unable to create PostgreSQL pool: %v", i+1, err)
+			if i == maxRetries-1 {
+				log.Fatal().Msgf("Failed to create PostgreSQL pool after %d attempts: %v", maxRetries, err)
+			}
+			time.Sleep(time.Second * time.Duration(2*(i+1)))
+			continue
+		}
+
+		// Check the connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = pool.Ping(ctx)
+		cancel()
+
+		if err != nil {
+			log.Warn().Msgf("Attempt %d: Failed to ping PostgreSQL: %v", i+1, err)
+			pool.Close()
+			if i == maxRetries-1 {
+				log.Fatal().Msgf("Failed to connect to PostgreSQL after %d attempts: %v", maxRetries, err)
+			}
+			time.Sleep(time.Second * time.Duration(2*(i+1)))
+			continue
+		}
+		// Connection successful
+		log.Info().Msgf("Successfully connected to PostgreSQL on attempt %d", i+1)
+		break
 	}
 
 	return pool
