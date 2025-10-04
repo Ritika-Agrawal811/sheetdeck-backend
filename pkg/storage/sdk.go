@@ -20,7 +20,7 @@ func NewStorageSdk() (*StorageSdk, error) {
 
 	// Check if the SDK is configured
 	if apiKey == "" || projectRef == "" {
-		return &StorageSdk{}, fmt.Errorf("Miissing Supabase credentials. Supabase Storage SDK not configured")
+		return &StorageSdk{}, fmt.Errorf("Missing Supabase credentials. Supabase Storage SDK not configured")
 	}
 
 	// Initialize the Supabase Storage client
