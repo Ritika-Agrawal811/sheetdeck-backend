@@ -35,7 +35,7 @@ func InitPostgresClient() *PostgresClient {
 
 // connectPostgres sets up a new connection to the PostgreSQL database.
 func connectPostgres() *pgxpool.Pool {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require",
 		utils.GetEnv("POSTGRES_USER", "user"),
 		utils.GetEnv("POSTGRES_PASSWORD", "password"),
 		utils.GetEnv("POSTGRES_HOST", "localhost"),
