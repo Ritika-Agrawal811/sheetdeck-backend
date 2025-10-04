@@ -68,8 +68,8 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 15 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	// Create a context with 25 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
 	defer cancel()
 
 	if err := h.service.CreateCheatsheet(ctx, req, cheatsheetImage); err != nil {
@@ -128,8 +128,8 @@ func (h *CheatsheetsHandler) BulkCreateCheatsheets(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 45 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	// Create a context with 60 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 
 	results := h.service.BulkCreateCheatsheets(ctx, reqs, files)
@@ -154,8 +154,8 @@ func (h *CheatsheetsHandler) GetCheatsheetByID(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Create a context with 10 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
 	cheatsheet, err := h.service.GetCheatsheetByID(ctx, id)
@@ -189,8 +189,8 @@ func (h *CheatsheetsHandler) GetCheatsheetBySlug(c *gin.Context) {
 		return
 	}
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Create a context with 10 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
 	cheatsheet, err := h.service.GetCheatsheetBySlug(ctx, slug)
@@ -220,8 +220,8 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	category := c.Query("category")
 	subcategory := c.Query("subcategory")
 
-	// Create a context with 15 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
 	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory)
@@ -292,8 +292,8 @@ func (h *CheatsheetsHandler) UpdateCheatsheet(c *gin.Context) {
 		cheatsheetImage = cheatsheetImageFile
 	}
 
-	// Create a context with 15 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
 	if err := h.service.UpdateCheatsheet(ctx, id, req, cheatsheetImage); err != nil {

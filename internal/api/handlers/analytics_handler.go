@@ -39,8 +39,8 @@ func (h *AnalyticsHandler) RecordPageView(c *gin.Context) {
 	req.IpAddress = c.ClientIP()
 	req.UserAgent = c.Request.UserAgent()
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Create a context with 10 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
 	if err := h.service.RecordPageView(ctx, req); err != nil {
@@ -68,8 +68,8 @@ func (h *AnalyticsHandler) RecordEvent(c *gin.Context) {
 	// Extract IP address from the request context
 	req.IpAddress = c.ClientIP()
 
-	// Create a context with 5 seconds timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Create a context with 10 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
 	if err := h.service.RecordEvent(ctx, req); err != nil {
