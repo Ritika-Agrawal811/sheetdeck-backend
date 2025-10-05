@@ -31,3 +31,24 @@ SET slug = COALESCE(NULLIF(sqlc.arg(slug)::varchar, ''), slug),
     updated_at = NOW()
 WHERE id = sqlc.arg(id);
 
+-- name: GetTotalCheasheetsCount :one
+Select COUNT(id) from cheatsheets;
+
+-- name: CountCheatsheetsByCategoryAndSubcategory :many
+SELECT category, subcategory, COUNT(DISTINCT id) AS cheatsheet_count
+FROM cheatsheets
+GROUP BY category, subcategory;
+
+-- name: GetCategoryDetails :many
+SELECT category, COUNT(DISTINCT id) AS cheatsheet_count, ARRAY_AGG(DISTINCT subcategory)::varchar[] AS subcategories
+FROM cheatsheets
+GROUP BY category;
+
+-- name: GetCategories :many
+SELECT unnest(enum_range(NULL::category))::varchar as categories;
+
+-- name: GetSubcategories :many
+SELECT unnest(enum_range(NULL::subcategory))::varchar as subcategories;
+
+
+

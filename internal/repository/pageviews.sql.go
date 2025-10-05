@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getTotalViewsAndVisitors = `-- name: GetTotalViewsAndVisitors :one
+SELECT COUNT(id) as total_views, COUNT(DISTINCT hashed_ip) as total_visitors
+FROM pageviews
+`
+
+type GetTotalViewsAndVisitorsRow struct {
+	TotalViews    int64 `json:"total_views"`
+	TotalVisitors int64 `json:"total_visitors"`
+}
+
+func (q *Queries) GetTotalViewsAndVisitors(ctx context.Context) (GetTotalViewsAndVisitorsRow, error) {
+	row := q.db.QueryRow(ctx, getTotalViewsAndVisitors)
+	var i GetTotalViewsAndVisitorsRow
+	err := row.Scan(&i.TotalViews, &i.TotalVisitors)
+	return i, err
+}
+
 const storePageview = `-- name: StorePageview :exec
 INSERT INTO pageviews (pathname, hashed_ip, country, browser, os, device, user_agent, referrer)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

@@ -11,9 +11,15 @@ import (
 )
 
 type Querier interface {
+	CountCheatsheetsByCategoryAndSubcategory(ctx context.Context) ([]CountCheatsheetsByCategoryAndSubcategoryRow, error)
 	CreateCheatsheet(ctx context.Context, arg CreateCheatsheetParams) error
+	GetCategories(ctx context.Context) ([]string, error)
+	GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsRow, error)
 	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (Cheatsheet, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsheet, error)
+	GetSubcategories(ctx context.Context) ([]string, error)
+	GetTotalCheasheetsCount(ctx context.Context) (int64, error)
+	GetTotalViewsAndVisitors(ctx context.Context) (GetTotalViewsAndVisitorsRow, error)
 	ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]Cheatsheet, error)
 	StoreEvent(ctx context.Context, arg StoreEventParams) error
 	StorePageview(ctx context.Context, arg StorePageviewParams) error
