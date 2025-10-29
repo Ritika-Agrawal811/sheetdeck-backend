@@ -203,7 +203,7 @@ func (q *Queries) GetTotalCheasheetsCount(ctx context.Context) (int64, error) {
 }
 
 const listCheatsheets = `-- name: ListCheatsheets :many
-SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
+SELECT id, slug, title, category::varchar, subcategory::varchar, image_url, created_at, updated_at
 FROM cheatsheets
 WHERE ($3::category IS NULL OR category = $3)
   AND ($4::subcategory IS NULL OR subcategory = $4)
@@ -218,7 +218,18 @@ type ListCheatsheetsParams struct {
 	Subcategory NullSubcategory `json:"subcategory"`
 }
 
-func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]Cheatsheet, error) {
+type ListCheatsheetsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	Title       string             `json:"title"`
+	Category    string             `json:"category"`
+	Subcategory string             `json:"subcategory"`
+	ImageUrl    pgtype.Text        `json:"image_url"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]ListCheatsheetsRow, error) {
 	rows, err := q.db.Query(ctx, listCheatsheets,
 		arg.Limit,
 		arg.Offset,
@@ -229,9 +240,9 @@ func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Cheatsheet{}
+	items := []ListCheatsheetsRow{}
 	for rows.Next() {
-		var i Cheatsheet
+		var i ListCheatsheetsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,

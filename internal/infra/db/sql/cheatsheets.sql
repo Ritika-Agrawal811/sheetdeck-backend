@@ -14,7 +14,7 @@ FROM cheatsheets
 WHERE slug = $1;    
 
 -- name: ListCheatsheets :many
-SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
+SELECT id, slug, title, category::varchar, subcategory::varchar, image_url, created_at, updated_at
 FROM cheatsheets
 WHERE (sqlc.narg(category)::category IS NULL OR category = sqlc.narg(category))
   AND (sqlc.narg(subcategory)::subcategory IS NULL OR subcategory = sqlc.narg(subcategory))

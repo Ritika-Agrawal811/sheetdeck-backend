@@ -20,7 +20,7 @@ type Querier interface {
 	GetSubcategories(ctx context.Context) ([]string, error)
 	GetTotalCheasheetsCount(ctx context.Context) (int64, error)
 	GetTotalViewsAndVisitors(ctx context.Context) (GetTotalViewsAndVisitorsRow, error)
-	ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]Cheatsheet, error)
+	ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]ListCheatsheetsRow, error)
 	StoreEvent(ctx context.Context, arg StoreEventParams) error
 	StorePageview(ctx context.Context, arg StorePageviewParams) error
 	UpdateCheatsheet(ctx context.Context, arg UpdateCheatsheetParams) error
