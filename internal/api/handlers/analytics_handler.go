@@ -80,3 +80,59 @@ func (h *AnalyticsHandler) RecordEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Event recorded successfully"})
 
 }
+
+/**
+ * Fetch page views stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.PageviewStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch page view stats"}
+ * @router /api/analytics/pageviews [get]
+ */
+func (h *AnalyticsHandler) GetPageviewsStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetPageviewsStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch page view stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+/**
+ * Fetch page views stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.DeviceStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch device stats"}
+ * @router /api/analytics/summary/devices [get]
+ */
+func (h *AnalyticsHandler) GetDevicesStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetDeviceStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch devices stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}

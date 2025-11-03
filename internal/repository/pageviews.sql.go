@@ -11,6 +11,234 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getCountriesSummaryByDay = `-- name: GetCountriesSummaryByDay :many
+SELECT 
+    country,
+    COUNT(*) AS views,
+    COUNT(DISTINCT hashed_ip) AS unique_visitors
+FROM pageviews
+WHERE viewed_at >= NOW() - make_interval(days => $1::int)
+GROUP BY country
+`
+
+type GetCountriesSummaryByDayRow struct {
+	Country        pgtype.Text `json:"country"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getCountriesSummaryByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCountriesSummaryByDayRow{}
+	for rows.Next() {
+		var i GetCountriesSummaryByDayRow
+		if err := rows.Scan(&i.Country, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDevicesSummaryByDay = `-- name: GetDevicesSummaryByDay :many
+SELECT 
+  d::date AS date,
+  -- Mobile
+  COALESCE(COUNT(p.viewed_at) FILTER (WHERE p.device = 'mobile'), 0)::bigint AS mobile_views,
+  COALESCE(COUNT(DISTINCT p.hashed_ip) FILTER (WHERE p.device = 'mobile'), 0)::bigint AS mobile_visitors,
+  -- Desktop
+  COALESCE(COUNT(p.viewed_at) FILTER (WHERE p.device = 'desktop'), 0)::bigint AS desktop_views,
+  COALESCE(COUNT(DISTINCT p.hashed_ip) FILTER (WHERE p.device = 'desktop'), 0)::bigint AS desktop_visitors
+FROM generate_series(
+    (NOW() - make_interval(days => $1::int))::date,
+    NOW()::date,
+    '1 day'
+) AS d
+LEFT JOIN pageviews p
+  ON DATE_TRUNC('day', p.viewed_at)::date = d
+GROUP BY d
+ORDER BY d
+`
+
+type GetDevicesSummaryByDayRow struct {
+	Date            pgtype.Date `json:"date"`
+	MobileViews     int64       `json:"mobile_views"`
+	MobileVisitors  int64       `json:"mobile_visitors"`
+	DesktopViews    int64       `json:"desktop_views"`
+	DesktopVisitors int64       `json:"desktop_visitors"`
+}
+
+func (q *Queries) GetDevicesSummaryByDay(ctx context.Context, days int32) ([]GetDevicesSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getDevicesSummaryByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDevicesSummaryByDayRow{}
+	for rows.Next() {
+		var i GetDevicesSummaryByDayRow
+		if err := rows.Scan(
+			&i.Date,
+			&i.MobileViews,
+			&i.MobileVisitors,
+			&i.DesktopViews,
+			&i.DesktopVisitors,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDevicesSummaryForLast24Hours = `-- name: GetDevicesSummaryForLast24Hours :many
+SELECT 
+  h::timestamp AS hour,
+  -- Mobile
+  COALESCE(COUNT(p.viewed_at) FILTER (WHERE p.device = 'mobile'), 0)::bigint AS mobile_views,
+  COALESCE(COUNT(DISTINCT p.hashed_ip) FILTER (WHERE p.device = 'mobile'), 0)::bigint AS mobile_visitors,
+  -- Desktop
+  COALESCE(COUNT(p.viewed_at) FILTER (WHERE p.device = 'desktop'), 0)::bigint AS desktop_views,
+  COALESCE(COUNT(DISTINCT p.hashed_ip) FILTER (WHERE p.device = 'desktop'), 0)::bigint AS desktop_visitors
+FROM generate_series(
+     date_trunc('hour', NOW() - INTERVAL '23 hours'),
+    date_trunc('hour', NOW()),
+    '1 hour'
+) AS h
+LEFT JOIN pageviews p
+  ON DATE_TRUNC('hour', p.viewed_at)::timestamp = h
+GROUP BY h
+ORDER BY h
+`
+
+type GetDevicesSummaryForLast24HoursRow struct {
+	Hour            pgtype.Timestamp `json:"hour"`
+	MobileViews     int64            `json:"mobile_views"`
+	MobileVisitors  int64            `json:"mobile_visitors"`
+	DesktopViews    int64            `json:"desktop_views"`
+	DesktopVisitors int64            `json:"desktop_visitors"`
+}
+
+func (q *Queries) GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDevicesSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getDevicesSummaryForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDevicesSummaryForLast24HoursRow{}
+	for rows.Next() {
+		var i GetDevicesSummaryForLast24HoursRow
+		if err := rows.Scan(
+			&i.Hour,
+			&i.MobileViews,
+			&i.MobileVisitors,
+			&i.DesktopViews,
+			&i.DesktopVisitors,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPageviewTimeseriesByDay = `-- name: GetPageviewTimeseriesByDay :many
+SELECT 
+    d::date AS date,
+    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
+    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
+FROM generate_series(
+    (NOW() - make_interval(days => $1::int))::date,
+    NOW()::date,
+    '1 day'
+) AS d
+LEFT JOIN pageviews p
+    ON DATE_TRUNC('day', p.viewed_at)::date = d
+GROUP BY d
+ORDER BY d
+`
+
+type GetPageviewTimeseriesByDayRow struct {
+	Date           pgtype.Date `json:"date"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetPageviewTimeseriesByDay(ctx context.Context, days int32) ([]GetPageviewTimeseriesByDayRow, error) {
+	rows, err := q.db.Query(ctx, getPageviewTimeseriesByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPageviewTimeseriesByDayRow{}
+	for rows.Next() {
+		var i GetPageviewTimeseriesByDayRow
+		if err := rows.Scan(&i.Date, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPageviewTimeseriesForLast24Hours = `-- name: GetPageviewTimeseriesForLast24Hours :many
+SELECT 
+    h::timestamp AS hour,
+    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
+    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
+FROM generate_series(
+    date_trunc('hour', NOW() - INTERVAL '23 hours'),
+    date_trunc('hour', NOW()),
+    '1 hour'
+) AS h
+LEFT JOIN pageviews p
+    ON date_trunc('hour', p.viewed_at) = h
+GROUP BY h
+ORDER BY h
+`
+
+type GetPageviewTimeseriesForLast24HoursRow struct {
+	Hour           pgtype.Timestamp `json:"hour"`
+	Views          int64            `json:"views"`
+	UniqueVisitors int64            `json:"unique_visitors"`
+}
+
+func (q *Queries) GetPageviewTimeseriesForLast24Hours(ctx context.Context) ([]GetPageviewTimeseriesForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getPageviewTimeseriesForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPageviewTimeseriesForLast24HoursRow{}
+	for rows.Next() {
+		var i GetPageviewTimeseriesForLast24HoursRow
+		if err := rows.Scan(&i.Hour, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalViewsAndVisitors = `-- name: GetTotalViewsAndVisitors :one
 SELECT COUNT(id) as total_views, COUNT(DISTINCT hashed_ip) as total_visitors
 FROM pageviews
