@@ -44,8 +44,8 @@ func (q *Queries) CountCheatsheetsByCategoryAndSubcategory(ctx context.Context) 
 }
 
 const createCheatsheet = `-- name: CreateCheatsheet :exec
-INSERT INTO cheatsheets (slug, title, category, subcategory, image_url)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO cheatsheets (slug, title, category, subcategory, image_url, image_size)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type CreateCheatsheetParams struct {
@@ -54,6 +54,7 @@ type CreateCheatsheetParams struct {
 	Category    Category    `json:"category"`
 	Subcategory Subcategory `json:"subcategory"`
 	ImageUrl    pgtype.Text `json:"image_url"`
+	ImageSize   pgtype.Int8 `json:"image_size"`
 }
 
 func (q *Queries) CreateCheatsheet(ctx context.Context, arg CreateCheatsheetParams) error {
@@ -63,6 +64,7 @@ func (q *Queries) CreateCheatsheet(ctx context.Context, arg CreateCheatsheetPara
 		arg.Category,
 		arg.Subcategory,
 		arg.ImageUrl,
+		arg.ImageSize,
 	)
 	return err
 }
@@ -129,9 +131,20 @@ FROM cheatsheets
 WHERE id = $1
 `
 
-func (q *Queries) GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (Cheatsheet, error) {
+type GetCheatsheetByIDRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	Title       string             `json:"title"`
+	Category    Category           `json:"category"`
+	Subcategory Subcategory        `json:"subcategory"`
+	ImageUrl    pgtype.Text        `json:"image_url"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetCheatsheetByIDRow, error) {
 	row := q.db.QueryRow(ctx, getCheatsheetByID, id)
-	var i Cheatsheet
+	var i GetCheatsheetByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -151,9 +164,20 @@ FROM cheatsheets
 WHERE slug = $1
 `
 
-func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsheet, error) {
+type GetCheatsheetBySlugRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	Title       string             `json:"title"`
+	Category    Category           `json:"category"`
+	Subcategory Subcategory        `json:"subcategory"`
+	ImageUrl    pgtype.Text        `json:"image_url"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error) {
 	row := q.db.QueryRow(ctx, getCheatsheetBySlug, slug)
-	var i Cheatsheet
+	var i GetCheatsheetBySlugRow
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -200,6 +224,25 @@ func (q *Queries) GetTotalCheasheetsCount(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getTotalImageSize = `-- name: GetTotalImageSize :one
+SELECT 
+  COALESCE(SUM(image_size), 0)::bigint as total_size,
+  pg_size_pretty(COALESCE(SUM(image_size), 0)) as total_size_pretty
+FROM cheatsheets
+`
+
+type GetTotalImageSizeRow struct {
+	TotalSize       int64  `json:"total_size"`
+	TotalSizePretty string `json:"total_size_pretty"`
+}
+
+func (q *Queries) GetTotalImageSize(ctx context.Context) (GetTotalImageSizeRow, error) {
+	row := q.db.QueryRow(ctx, getTotalImageSize)
+	var i GetTotalImageSizeRow
+	err := row.Scan(&i.TotalSize, &i.TotalSizePretty)
+	return i, err
 }
 
 const listCheatsheets = `-- name: ListCheatsheets :many

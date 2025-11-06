@@ -1,7 +1,6 @@
 -- name: CreateCheatsheet :exec
-INSERT INTO cheatsheets (slug, title, category, subcategory, image_url)
-VALUES ($1, $2, $3, $4, $5);
-
+INSERT INTO cheatsheets (slug, title, category, subcategory, image_url, image_size)
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: GetCheatsheetByID :one
 SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
@@ -51,4 +50,9 @@ SELECT unnest(enum_range(NULL::category))::varchar as categories;
 SELECT unnest(enum_range(NULL::subcategory))::varchar as subcategories;
 
 
+-- name: GetTotalImageSize :one
+SELECT 
+  COALESCE(SUM(image_size), 0)::bigint as total_size,
+  pg_size_pretty(COALESCE(SUM(image_size), 0)) as total_size_pretty
+FROM cheatsheets;
 

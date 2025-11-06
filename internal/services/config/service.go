@@ -3,25 +3,39 @@ package config
 import (
 	"context"
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/entities"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/infra/db"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ConfigService interface {
 	GetConfig(ctx context.Context) (*dtos.ConfigResponse, error)
+	GetUsage(ctx context.Context) (*dtos.UsageResponse, error)
 }
 
 type configService struct {
 	repo *repository.Queries
+	db   *pgxpool.Pool
 }
 
 func NewConfigService(repo *repository.Queries) ConfigService {
+
 	return &configService{
 		repo: repo,
+		db:   db.GetPostgresClient(),
 	}
 }
 
+/**
+ * Get Config - categories, subcategories, stats, etc.
+ * @param ctx context.Context
+ * @return *dtos.ConfigResponse, error
+ */
 func (s *configService) GetConfig(ctx context.Context) (*dtos.ConfigResponse, error) {
 
 	// Get total cheatsheets count
@@ -67,6 +81,11 @@ func (s *configService) GetConfig(ctx context.Context) (*dtos.ConfigResponse, er
 	return config, nil
 }
 
+/**
+ * Fetch category statistics including subcategory breakdowns
+ * @param ctx context.Context
+ * @return []dtos.CategoryStat
+ */
 func (s *configService) fetchCategoryStats(ctx context.Context) []dtos.CategoryStat {
 	// Fetch category totals
 	categoryDetails, err := s.repo.GetCategoryDetails(ctx)
@@ -102,4 +121,85 @@ func (s *configService) fetchCategoryStats(ctx context.Context) []dtos.CategoryS
 	}
 
 	return stats
+}
+
+/**
+ * Get Usage - database size, storage size, etc.
+ * @param ctx context.Context
+ * @return *dtos.UsageResponse, error
+ */
+func (s *configService) GetUsage(ctx context.Context) (*dtos.UsageResponse, error) {
+
+	/*  Get database usage info */
+	databaseUsage, err := s.getDatabaseSize(ctx)
+	if err != nil {
+		return &dtos.UsageResponse{}, fmt.Errorf("failed to get database usage info")
+	}
+
+	databaseDetails, ok := entities.ResourceLimits["database"]
+	if !ok {
+		return &dtos.UsageResponse{}, fmt.Errorf("database resource limit config not found")
+	}
+
+	databaseUsagePercent := (float64(databaseUsage.SizeBytes) / float64(databaseDetails.LimitBytes)) * 100
+	if databaseUsagePercent > 100 {
+		databaseUsagePercent = 100
+	}
+
+	/*  Get storage usage info */
+	storageUsage, err := s.repo.GetTotalImageSize(ctx)
+	if err != nil {
+		return &dtos.UsageResponse{}, fmt.Errorf("failed to get storage usage info: %v", err)
+	}
+
+	storageDetails, ok := entities.ResourceLimits["storage"]
+	if !ok {
+		return &dtos.UsageResponse{}, fmt.Errorf("storage resource limit config not found")
+	}
+
+	storageUsagePercent := (float64(storageUsage.TotalSize) / float64(storageDetails.LimitBytes)) * 100
+	if storageUsagePercent > 100 {
+		storageUsagePercent = 100
+	}
+
+	response := &dtos.UsageResponse{
+		Database: dtos.ResourceUsage{
+			SizeBytes:    databaseUsage.SizeBytes,
+			SizePretty:   databaseUsage.SizePretty,
+			LimitBytes:   databaseDetails.LimitBytes,
+			LimitPretty:  databaseDetails.LimitPretty,
+			UsagePercent: math.Round(databaseUsagePercent),
+		},
+		Storage: dtos.ResourceUsage{
+			SizeBytes:    storageUsage.TotalSize,
+			SizePretty:   storageUsage.TotalSizePretty,
+			LimitBytes:   storageDetails.LimitBytes,
+			LimitPretty:  storageDetails.LimitPretty,
+			UsagePercent: math.Round(storageUsagePercent),
+		},
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	return response, nil
+}
+
+/**
+ * Retrieve the total size of the PostgreSQL database.
+ * @param ctx context.Context
+ * @return *entities.DatabaseSize, error
+ */
+func (s *configService) getDatabaseSize(ctx context.Context) (*entities.DatabaseSize, error) {
+	query := `
+		SELECT 
+			sum(pg_database_size(pg_database.datname))::bigint as size_bytes,
+			pg_size_pretty(sum(pg_database_size(pg_database.datname))) as size_pretty
+		FROM pg_database
+	`
+
+	var result entities.DatabaseSize
+	err := s.db.QueryRow(ctx, query).Scan(&result.SizeBytes, &result.SizePretty)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
