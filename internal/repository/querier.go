@@ -15,8 +15,8 @@ type Querier interface {
 	CreateCheatsheet(ctx context.Context, arg CreateCheatsheetParams) error
 	GetCategories(ctx context.Context) ([]string, error)
 	GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsRow, error)
-	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (Cheatsheet, error)
-	GetCheatsheetBySlug(ctx context.Context, slug string) (Cheatsheet, error)
+	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetCheatsheetByIDRow, error)
+	GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error)
 	GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error)
 	GetDevicesSummaryByDay(ctx context.Context, days int32) ([]GetDevicesSummaryByDayRow, error)
 	GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDevicesSummaryForLast24HoursRow, error)
@@ -24,6 +24,7 @@ type Querier interface {
 	GetPageviewTimeseriesForLast24Hours(ctx context.Context) ([]GetPageviewTimeseriesForLast24HoursRow, error)
 	GetSubcategories(ctx context.Context) ([]string, error)
 	GetTotalCheasheetsCount(ctx context.Context) (int64, error)
+	GetTotalImageSize(ctx context.Context) (GetTotalImageSizeRow, error)
 	GetTotalViewsAndVisitors(ctx context.Context) (GetTotalViewsAndVisitorsRow, error)
 	ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]ListCheatsheetsRow, error)
 	StoreEvent(ctx context.Context, arg StoreEventParams) error

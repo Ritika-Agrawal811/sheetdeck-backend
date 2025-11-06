@@ -10,5 +10,6 @@ func setupConfigRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	configGroup := apiGroup.Group("/config")
 
 	configGroup.GET("", configHandler.GetConfiq)
+	configGroup.GET("/usage", configHandler.GetUsage)
 
 }

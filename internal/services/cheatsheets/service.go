@@ -15,10 +15,10 @@ import (
 )
 
 type CheatsheetsService interface {
-	CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File) error
+	CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File, imageSize int64) error
 	BulkCreateCheatsheets(ctx context.Context, details []dtos.Cheatsheet, files []*multipart.FileHeader) []string
-	GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error)
-	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error)
+	GetCheatsheetByID(ctx context.Context, id string) (*repository.GetCheatsheetByIDRow, error)
+	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.GetCheatsheetBySlugRow, error)
 	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.ListCheatsheetsRow, error)
 	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest, image multipart.File) error
 }
@@ -45,7 +45,7 @@ func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
  * @param details dtos.Cheatsheet
  * @return error
  */
-func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File) error {
+func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.Cheatsheet, image multipart.File, imageSize int64) error {
 	// Validate required fields
 	if details.Slug == "" || details.Title == "" || details.Category == "" || details.SubCategory == "" {
 		return fmt.Errorf("missing required fields")
@@ -56,6 +56,7 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 		Title:       details.Title,
 		Category:    repository.Category(details.Category),
 		Subcategory: repository.Subcategory(details.SubCategory),
+		ImageSize:   utils.PgInt8(imageSize),
 	}
 
 	// Upload image to Supabase Storage
@@ -111,7 +112,7 @@ func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details 
 		}
 
 		// Call existing single cheatsheet service
-		if err := s.CreateCheatsheet(ctx, details[i], file); err != nil {
+		if err := s.CreateCheatsheet(ctx, details[i], file, fileHeader.Size); err != nil {
 			results = append(results, fmt.Sprintf("Failed: %s (%v)", details[i].Title, err))
 		} else {
 			results = append(results, fmt.Sprintf("Success: %s", details[i].Title))
@@ -126,7 +127,7 @@ func (s *cheatsheetsService) BulkCreateCheatsheets(ctx context.Context, details 
  * @param id string
  * @return *repository.Cheatsheet, error
  */
-func (s *cheatsheetsService) GetCheatsheetByID(ctx context.Context, id string) (*repository.Cheatsheet, error) {
+func (s *cheatsheetsService) GetCheatsheetByID(ctx context.Context, id string) (*repository.GetCheatsheetByIDRow, error) {
 	cheatsheetID, err := utils.StringToUUID(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid UUID format: %w", err)
@@ -145,7 +146,7 @@ func (s *cheatsheetsService) GetCheatsheetByID(ctx context.Context, id string) (
  * @param slug string
  * @return *repository.Cheatsheet, error
  */
-func (s *cheatsheetsService) GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.Cheatsheet, error) {
+func (s *cheatsheetsService) GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.GetCheatsheetBySlugRow, error) {
 	cheatsheet, err := s.repo.GetCheatsheetBySlug(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch cheatsheet: %w", err)

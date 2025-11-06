@@ -72,7 +72,7 @@ func (h *CheatsheetsHandler) CreateCheatsheet(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
 	defer cancel()
 
-	if err := h.service.CreateCheatsheet(ctx, req, cheatsheetImage); err != nil {
+	if err := h.service.CreateCheatsheet(ctx, req, cheatsheetImage, header.Size); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create cheatsheet: %v", err.Error())})
 		return
 	}

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cheatsheets (
     category category NOT NULL,
     subcategory subcategory NOT NULL,
     image_url TEXT,
+    image_size BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
