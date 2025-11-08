@@ -18,6 +18,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
     ON DATE_TRUNC('day', p.viewed_at)::date = d
+    AND p.browser != 'Headless Chrome'
 GROUP BY d
 ORDER BY d;
 
@@ -33,6 +34,7 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
     ON date_trunc('hour', p.viewed_at) = h
+    AND p.browser != 'Headless Chrome'
 GROUP BY h
 ORDER BY h;
 
@@ -52,6 +54,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
   ON DATE_TRUNC('day', p.viewed_at)::date = d
+  AND p.browser != 'Headless Chrome'
 GROUP BY d
 ORDER BY d;
 
@@ -71,14 +74,27 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
   ON DATE_TRUNC('hour', p.viewed_at)::timestamp = h
+  AND p.browser != 'Headless Chrome'
 GROUP BY h
 ORDER BY h;
 
--- name: GetCountriesSummaryByDay :many
+-- name: GetBrowsersSummaryByDay :many
 SELECT 
-    country,
-    COUNT(*) AS views,
-    COUNT(DISTINCT hashed_ip) AS unique_visitors
-FROM pageviews
-WHERE viewed_at >= NOW() - make_interval(days => sqlc.arg(days)::int)
-GROUP BY country;
+   DISTINCT(browser), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY browser;
+
+-- name: GetBrowsersSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(browser), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY browser;

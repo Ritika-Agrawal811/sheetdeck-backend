@@ -28,3 +28,9 @@ type DeviceStats struct {
 	TotalDesktopVisitors int64             `json:"total_desktop_visitors"`
 	Intervals            []dtos.DeviceStat `json:"Intervals"`
 }
+
+type BrowserStats struct {
+	TotalViews          int64              `json:"total_views"`
+	TotalUniqueVisitors int64              `json:"total_unique_visitors"`
+	Browsers            []dtos.BrowserStat `json:"browsers"`
+}

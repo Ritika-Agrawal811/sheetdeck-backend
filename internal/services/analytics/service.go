@@ -19,6 +19,7 @@ import (
 type AnalyticsService interface {
 	GetPageviewsStats(ctx context.Context, period string) (*dtos.PageviewStatsResponse, error)
 	GetDeviceStats(ctx context.Context, period string) (*dtos.DeviceStatsResponse, error)
+	GetBrowserStats(ctx context.Context, period string) (*dtos.BrowserStatsResponse, error)
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
 	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
@@ -35,6 +36,126 @@ func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
 		repo:   repo,
 		geoSdk: geoSdk,
 	}
+}
+
+/**
+ * Get browsers metrics by period - 24h, 7d, 30d etc.
+ * @param period string
+ * @return *dtos.BrowserStatsResponse, error
+ */
+func (s analyticsService) GetBrowserStats(ctx context.Context, period string) (*dtos.BrowserStatsResponse, error) {
+	// check if period is valid
+	periodData, ok := entities.PeriodConfigs[period]
+	if !ok {
+		return nil, fmt.Errorf("invalid period: %s", period)
+	}
+
+	var browserssData *entities.BrowserStats
+	var err error
+
+	switch period {
+	case "24h":
+		browserssData, err = s.getBrowsersStatsForLast24Hours(ctx)
+	case "7d", "30d", "3m", "6m", "12m":
+		browserssData, err = s.getBrowsersStatsByDay(ctx, int32(periodData.Days))
+	default:
+		return nil, fmt.Errorf("invalid period")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pageviews data: %w", err)
+	}
+
+	now := time.Now().UTC()
+	var startDate, endDate time.Time
+
+	if periodData.Days == 0 {
+		endDate = now.Truncate(time.Hour)
+		startDate = endDate.Add(-24 * time.Hour)
+	} else {
+		endDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		startDate = endDate.AddDate(0, 0, -int(periodData.Days))
+	}
+
+	stats := &dtos.BrowserStatsResponse{
+		Period:              period,
+		StartDate:           startDate,
+		EndDate:             endDate,
+		TotalViews:          browserssData.TotalViews,
+		TotalUniqueVisitors: browserssData.TotalUniqueVisitors,
+		Browsers:            browserssData.Browsers,
+	}
+
+	return stats, nil
+}
+
+/**
+ * Get browsers stats by days
+ * @param days int32
+ * @return []*dtos.BrowserStat, error
+ */
+func (s *analyticsService) getBrowsersStatsByDay(ctx context.Context, days int32) (*entities.BrowserStats, error) {
+	browserData, err := s.repo.GetBrowsersSummaryByDay(ctx, days)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch browser stats: %w", err)
+	}
+
+	browsers := make([]dtos.BrowserStat, 0, len(browserData))
+	var totalViews int64
+	var uniqueVisitors int64
+
+	for _, data := range browserData {
+		browsers = append(browsers, dtos.BrowserStat{
+			Browser:  data.Browser.String,
+			Views:    data.Views,
+			Visitors: data.UniqueVisitors,
+		})
+
+		totalViews += data.Views
+		uniqueVisitors += data.UniqueVisitors
+	}
+
+	response := &entities.BrowserStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		Browsers:            browsers,
+	}
+
+	return response, nil
+}
+
+/**
+ * Get browsers stats for last 24 hours
+ * @return []*dtos.BrowserStat, error
+ */
+func (s *analyticsService) getBrowsersStatsForLast24Hours(ctx context.Context) (*entities.BrowserStats, error) {
+	browserData, err := s.repo.GetBrowsersSummaryForLast24Hours(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch browser stats: %w", err)
+	}
+
+	browsers := make([]dtos.BrowserStat, 0, len(browserData))
+	var totalViews int64
+	var uniqueVisitors int64
+
+	for _, data := range browserData {
+		browsers = append(browsers, dtos.BrowserStat{
+			Browser:  data.Browser.String,
+			Views:    data.Views,
+			Visitors: data.UniqueVisitors,
+		})
+
+		totalViews += data.Views
+		uniqueVisitors += data.UniqueVisitors
+	}
+
+	response := &entities.BrowserStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		Browsers:            browsers,
+	}
+
+	return response, nil
 }
 
 /**
@@ -96,7 +217,7 @@ func (s *analyticsService) GetDeviceStats(ctx context.Context, period string) (*
 func (s *analyticsService) getDevicesStatsByDay(ctx context.Context, days int32) (*entities.DeviceStats, error) {
 	devicesData, err := s.repo.GetDevicesSummaryByDay(ctx, days)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch page views stats: %w", err)
+		return nil, fmt.Errorf("failed to fetch devices stats: %w", err)
 	}
 
 	devices := make([]dtos.DeviceStat, 0, len(devicesData))
@@ -136,7 +257,7 @@ func (s *analyticsService) getDevicesStatsByDay(ctx context.Context, days int32)
 func (s *analyticsService) getDevicesStatsForLast24Hours(ctx context.Context) (*entities.DeviceStats, error) {
 	devicesData, err := s.repo.GetDevicesSummaryForLast24Hours(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch page views stats: %w", err)
+		return nil, fmt.Errorf("failed to fetch devices stats: %w", err)
 	}
 
 	devices := make([]dtos.DeviceStat, 0, len(devicesData))

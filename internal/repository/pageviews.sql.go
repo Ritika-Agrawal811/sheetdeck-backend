@@ -11,32 +11,71 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getCountriesSummaryByDay = `-- name: GetCountriesSummaryByDay :many
+const getBrowsersSummaryByDay = `-- name: GetBrowsersSummaryByDay :many
 SELECT 
-    country,
-    COUNT(*) AS views,
-    COUNT(DISTINCT hashed_ip) AS unique_visitors
-FROM pageviews
-WHERE viewed_at >= NOW() - make_interval(days => $1::int)
-GROUP BY country
+   DISTINCT(browser), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY browser
 `
 
-type GetCountriesSummaryByDayRow struct {
-	Country        pgtype.Text `json:"country"`
+type GetBrowsersSummaryByDayRow struct {
+	Browser        pgtype.Text `json:"browser"`
 	Views          int64       `json:"views"`
 	UniqueVisitors int64       `json:"unique_visitors"`
 }
 
-func (q *Queries) GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error) {
-	rows, err := q.db.Query(ctx, getCountriesSummaryByDay, days)
+func (q *Queries) GetBrowsersSummaryByDay(ctx context.Context, days int32) ([]GetBrowsersSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getBrowsersSummaryByDay, days)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetCountriesSummaryByDayRow{}
+	items := []GetBrowsersSummaryByDayRow{}
 	for rows.Next() {
-		var i GetCountriesSummaryByDayRow
-		if err := rows.Scan(&i.Country, &i.Views, &i.UniqueVisitors); err != nil {
+		var i GetBrowsersSummaryByDayRow
+		if err := rows.Scan(&i.Browser, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBrowsersSummaryForLast24Hours = `-- name: GetBrowsersSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(browser), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY browser
+`
+
+type GetBrowsersSummaryForLast24HoursRow struct {
+	Browser        pgtype.Text `json:"browser"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetBrowsersSummaryForLast24Hours(ctx context.Context) ([]GetBrowsersSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getBrowsersSummaryForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetBrowsersSummaryForLast24HoursRow{}
+	for rows.Next() {
+		var i GetBrowsersSummaryForLast24HoursRow
+		if err := rows.Scan(&i.Browser, &i.Views, &i.UniqueVisitors); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -63,6 +102,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
   ON DATE_TRUNC('day', p.viewed_at)::date = d
+  AND p.browser != 'Headless Chrome'
 GROUP BY d
 ORDER BY d
 `
@@ -117,6 +157,7 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
   ON DATE_TRUNC('hour', p.viewed_at)::timestamp = h
+  AND p.browser != 'Headless Chrome'
 GROUP BY h
 ORDER BY h
 `
@@ -167,6 +208,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
     ON DATE_TRUNC('day', p.viewed_at)::date = d
+    AND p.browser != 'Headless Chrome'
 GROUP BY d
 ORDER BY d
 `
@@ -209,6 +251,7 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
     ON date_trunc('hour', p.viewed_at) = h
+    AND p.browser != 'Headless Chrome'
 GROUP BY h
 ORDER BY h
 `

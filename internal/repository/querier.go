@@ -13,11 +13,12 @@ import (
 type Querier interface {
 	CountCheatsheetsByCategoryAndSubcategory(ctx context.Context) ([]CountCheatsheetsByCategoryAndSubcategoryRow, error)
 	CreateCheatsheet(ctx context.Context, arg CreateCheatsheetParams) error
+	GetBrowsersSummaryByDay(ctx context.Context, days int32) ([]GetBrowsersSummaryByDayRow, error)
+	GetBrowsersSummaryForLast24Hours(ctx context.Context) ([]GetBrowsersSummaryForLast24HoursRow, error)
 	GetCategories(ctx context.Context) ([]string, error)
 	GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsRow, error)
 	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetCheatsheetByIDRow, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error)
-	GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error)
 	GetDevicesSummaryByDay(ctx context.Context, days int32) ([]GetDevicesSummaryByDayRow, error)
 	GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDevicesSummaryForLast24HoursRow, error)
 	GetPageviewTimeseriesByDay(ctx context.Context, days int32) ([]GetPageviewTimeseriesByDayRow, error)
