@@ -136,3 +136,31 @@ func (h *AnalyticsHandler) GetDevicesStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
+
+/**
+ * Fetch browser stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.BrowserStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch browser stats"}
+ * @router /api/analytics/summary/browsers [get]
+ */
+func (h *AnalyticsHandler) GetBrowsersStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetBrowserStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch browsers stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
