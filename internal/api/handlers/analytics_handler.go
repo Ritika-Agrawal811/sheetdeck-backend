@@ -164,3 +164,31 @@ func (h *AnalyticsHandler) GetBrowsersStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
+
+/**
+ * Fetch operating systems stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.OSStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch operating systems stats"}
+ * @router /api/analytics/summary/os [get]
+ */
+func (h *AnalyticsHandler) GetOperatingSystemsStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetOperatingSystemsStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch operating systems stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}

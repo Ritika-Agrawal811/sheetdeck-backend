@@ -114,7 +114,7 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 	// Create API group with middleware
 	apiGroup := r.Group("/api")
 	apiGroup.Use(middlewares.ValidateRequestMiddleware(cfg.AllowedOrigins))
-	rateLimiter := middlewares.NewRateLimiterStore(10, time.Minute)
+	rateLimiter := middlewares.NewRateLimiterStore(150, time.Minute)
 	apiGroup.Use(rateLimiter.RateLimitMiddleware())
 
 	return r, apiGroup

@@ -98,3 +98,62 @@ FROM pageviews
 WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY browser;
+
+-- name: GetOSSummaryByDay :many
+SELECT 
+   CASE 
+      -- iOS variants
+      WHEN os ILIKE '%iPhone OS%' OR os ILIKE '%iOS%' THEN 'iOS'::varchar
+      -- Android variants
+      WHEN os ILIKE '%Android%' THEN 'Android'::varchar
+      -- Windows variants
+      WHEN os ILIKE '%Windows%' THEN 'Windows'::varchar
+      -- Mac OS variants
+      WHEN os ILIKE '%Mac OS%' AND os NOT ILIKE '%iPhone%' THEN 'Mac OS'::varchar
+      -- Linux variants
+      WHEN os ILIKE '%Linux%' AND os NOT ILIKE '%Android%' THEN 'Linux'::varchar
+      -- Chrome OS
+      WHEN os ILIKE '%Chrome OS%' THEN 'Chrome OS'::varchar
+      -- Keep other OS as-is or mark as Other
+      ELSE COALESCE(os, 'Other')::varchar
+   END AS os_group,
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+  AND os IS NOT NULL
+GROUP BY os_group;
+
+-- name: GetOSSummaryForLast24Hours :many
+SELECT 
+   CASE 
+      -- iOS variants
+      WHEN os ILIKE '%iPhone OS%' OR os ILIKE '%iOS%' THEN 'iOS'::varchar
+      -- Android variants
+      WHEN os ILIKE '%Android%' THEN 'Android'::varchar
+      -- Windows variants
+      WHEN os ILIKE '%Windows%' THEN 'Windows'::varchar
+      -- Mac OS variants
+      WHEN os ILIKE '%Mac OS%' AND os NOT ILIKE '%iPhone%' THEN 'Mac OS'::varchar
+      -- Linux variants
+      WHEN os ILIKE '%Linux%' AND os NOT ILIKE '%Android%' THEN 'Linux'::varchar
+      -- Chrome OS
+      WHEN os ILIKE '%Chrome OS%' THEN 'Chrome OS'::varchar
+      -- Keep other OS as-is or mark as Other
+      ELSE COALESCE(os, 'Other')::varchar
+   END AS os_group,
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND viewed_at >= NOW() - INTERVAL '23 hours'
+  AND os IS NOT NULL
+GROUP BY os_group;
+
+
+
+
+
+

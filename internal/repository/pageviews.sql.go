@@ -196,6 +196,113 @@ func (q *Queries) GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDev
 	return items, nil
 }
 
+const getOSSummaryByDay = `-- name: GetOSSummaryByDay :many
+SELECT 
+   CASE 
+      -- iOS variants
+      WHEN os ILIKE '%iPhone OS%' OR os ILIKE '%iOS%' THEN 'iOS'::varchar
+      -- Android variants
+      WHEN os ILIKE '%Android%' THEN 'Android'::varchar
+      -- Windows variants
+      WHEN os ILIKE '%Windows%' THEN 'Windows'::varchar
+      -- Mac OS variants
+      WHEN os ILIKE '%Mac OS%' AND os NOT ILIKE '%iPhone%' THEN 'Mac OS'::varchar
+      -- Linux variants
+      WHEN os ILIKE '%Linux%' AND os NOT ILIKE '%Android%' THEN 'Linux'::varchar
+      -- Chrome OS
+      WHEN os ILIKE '%Chrome OS%' THEN 'Chrome OS'::varchar
+      -- Keep other OS as-is or mark as Other
+      ELSE COALESCE(os, 'Other')::varchar
+   END AS os_group,
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+  AND os IS NOT NULL
+GROUP BY os_group
+`
+
+type GetOSSummaryByDayRow struct {
+	OsGroup        string `json:"os_group"`
+	Views          int64  `json:"views"`
+	UniqueVisitors int64  `json:"unique_visitors"`
+}
+
+func (q *Queries) GetOSSummaryByDay(ctx context.Context, days int32) ([]GetOSSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getOSSummaryByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOSSummaryByDayRow{}
+	for rows.Next() {
+		var i GetOSSummaryByDayRow
+		if err := rows.Scan(&i.OsGroup, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOSSummaryForLast24Hours = `-- name: GetOSSummaryForLast24Hours :many
+SELECT 
+   CASE 
+      -- iOS variants
+      WHEN os ILIKE '%iPhone OS%' OR os ILIKE '%iOS%' THEN 'iOS'::varchar
+      -- Android variants
+      WHEN os ILIKE '%Android%' THEN 'Android'::varchar
+      -- Windows variants
+      WHEN os ILIKE '%Windows%' THEN 'Windows'::varchar
+      -- Mac OS variants
+      WHEN os ILIKE '%Mac OS%' AND os NOT ILIKE '%iPhone%' THEN 'Mac OS'::varchar
+      -- Linux variants
+      WHEN os ILIKE '%Linux%' AND os NOT ILIKE '%Android%' THEN 'Linux'::varchar
+      -- Chrome OS
+      WHEN os ILIKE '%Chrome OS%' THEN 'Chrome OS'::varchar
+      -- Keep other OS as-is or mark as Other
+      ELSE COALESCE(os, 'Other')::varchar
+   END AS os_group,
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND viewed_at >= NOW() - INTERVAL '23 hours'
+  AND os IS NOT NULL
+GROUP BY os_group
+`
+
+type GetOSSummaryForLast24HoursRow struct {
+	OsGroup        string `json:"os_group"`
+	Views          int64  `json:"views"`
+	UniqueVisitors int64  `json:"unique_visitors"`
+}
+
+func (q *Queries) GetOSSummaryForLast24Hours(ctx context.Context) ([]GetOSSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getOSSummaryForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOSSummaryForLast24HoursRow{}
+	for rows.Next() {
+		var i GetOSSummaryForLast24HoursRow
+		if err := rows.Scan(&i.OsGroup, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPageviewTimeseriesByDay = `-- name: GetPageviewTimeseriesByDay :many
 SELECT 
     d::date AS date,

@@ -20,6 +20,7 @@ type AnalyticsService interface {
 	GetPageviewsStats(ctx context.Context, period string) (*dtos.PageviewStatsResponse, error)
 	GetDeviceStats(ctx context.Context, period string) (*dtos.DeviceStatsResponse, error)
 	GetBrowserStats(ctx context.Context, period string) (*dtos.BrowserStatsResponse, error)
+	GetOperatingSystemsStats(ctx context.Context, period string) (*dtos.OperatingSystemStatsResponse, error)
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
 	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
@@ -36,6 +37,116 @@ func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
 		repo:   repo,
 		geoSdk: geoSdk,
 	}
+}
+
+/**
+ * Get operating systems metrics by period - 24h, 7d, 30d etc.
+ * @param period string
+ * @return *dtos.OperatingSystemStatsResponse, error
+ */
+func (s *analyticsService) GetOperatingSystemsStats(ctx context.Context, period string) (*dtos.OperatingSystemStatsResponse, error) {
+	// check if period is valid
+	periodData, ok := entities.PeriodConfigs[period]
+	if !ok {
+		return nil, fmt.Errorf("invalid period: %s", period)
+	}
+
+	var osData *entities.OperatingSystemStats
+	var err error
+
+	switch period {
+	case "24h":
+		osData, err = s.getOperatingSystemsStatsForLast24Hours(ctx)
+	case "7d", "30d", "3m", "6m", "12m":
+		osData, err = s.getOperatingSystemsStatsByDay(ctx, int32(periodData.Days))
+	default:
+		return nil, fmt.Errorf("invalid period")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch operating systems data: %w", err)
+	}
+
+	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
+
+	stats := &dtos.OperatingSystemStatsResponse{
+		Period:              period,
+		StartDate:           startDate,
+		EndDate:             endDate,
+		TotalViews:          osData.TotalViews,
+		TotalUniqueVisitors: osData.TotalUniqueVisitors,
+		OperatingSystems:    osData.OperatingSystems,
+	}
+
+	return stats, nil
+}
+
+/**
+ * Get operating systems stats  by period - 24h, 7d, 30d etc.
+ * @return *entities.OperatingSystemStats, error
+ */
+func (s *analyticsService) getOperatingSystemsStatsByDay(ctx context.Context, days int32) (*entities.OperatingSystemStats, error) {
+	osData, err := s.repo.GetOSSummaryByDay(ctx, days)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch operating systems stats: %w", err)
+	}
+
+	operatingSystems := make([]dtos.OperatingSystemStat, 0, len(osData))
+	var totalViews int64
+	var uniqueVisitors int64
+
+	for _, data := range osData {
+		operatingSystems = append(operatingSystems, dtos.OperatingSystemStat{
+			OS:       data.OsGroup,
+			Views:    data.Views,
+			Visitors: data.UniqueVisitors,
+		})
+
+		totalViews += data.Views
+		uniqueVisitors += data.UniqueVisitors
+	}
+
+	response := &entities.OperatingSystemStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		OperatingSystems:    operatingSystems,
+	}
+
+	return response, nil
+}
+
+/**
+ * Get operating systems stats for last 24 hours
+ * @return *entities.OperatingSystemStats, error
+ */
+func (s *analyticsService) getOperatingSystemsStatsForLast24Hours(ctx context.Context) (*entities.OperatingSystemStats, error) {
+	osData, err := s.repo.GetOSSummaryForLast24Hours(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch operating systems stats: %w", err)
+	}
+
+	operatingSystems := make([]dtos.OperatingSystemStat, 0, len(osData))
+	var totalViews int64
+	var uniqueVisitors int64
+
+	for _, data := range osData {
+		operatingSystems = append(operatingSystems, dtos.OperatingSystemStat{
+			OS:       data.OsGroup,
+			Views:    data.Views,
+			Visitors: data.UniqueVisitors,
+		})
+
+		totalViews += data.Views
+		uniqueVisitors += data.UniqueVisitors
+	}
+
+	response := &entities.OperatingSystemStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		OperatingSystems:    operatingSystems,
+	}
+
+	return response, nil
 }
 
 /**
@@ -66,16 +177,7 @@ func (s analyticsService) GetBrowserStats(ctx context.Context, period string) (*
 		return nil, fmt.Errorf("failed to fetch pageviews data: %w", err)
 	}
 
-	now := time.Now().UTC()
-	var startDate, endDate time.Time
-
-	if periodData.Days == 0 {
-		endDate = now.Truncate(time.Hour)
-		startDate = endDate.Add(-24 * time.Hour)
-	} else {
-		endDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		startDate = endDate.AddDate(0, 0, -int(periodData.Days))
-	}
+	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
 
 	stats := &dtos.BrowserStatsResponse{
 		Period:              period,
@@ -512,4 +614,24 @@ func hashIP(ip string) string {
 	h := sha256.New()
 	h.Write([]byte(ip + salt))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+/**
+ * Get start and end dates for a given period in days
+ * @param days int64
+ * @return startDate, endDate time.Time, error
+ */
+func getStartAndEndDatesForPeriod(days int64) (time.Time, time.Time) {
+	now := time.Now().UTC()
+	var startDate, endDate time.Time
+
+	if days == 0 {
+		endDate = now.Truncate(time.Hour)
+		startDate = endDate.Add(-24 * time.Hour)
+	} else {
+		endDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		startDate = endDate.AddDate(0, 0, -int(days))
+	}
+
+	return startDate, endDate
 }
