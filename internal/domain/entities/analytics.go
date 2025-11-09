@@ -1,6 +1,8 @@
 package entities
 
-import "github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
+import (
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
+)
 
 type PeriodConfig struct {
 	Days int
@@ -33,4 +35,10 @@ type BrowserStats struct {
 	TotalViews          int64              `json:"total_views"`
 	TotalUniqueVisitors int64              `json:"total_unique_visitors"`
 	Browsers            []dtos.BrowserStat `json:"browsers"`
+}
+
+type OperatingSystemStats struct {
+	TotalViews          int64                      `json:"total_views"`
+	TotalUniqueVisitors int64                      `json:"total_unique_visitors"`
+	OperatingSystems    []dtos.OperatingSystemStat `json:"operating_systems"`
 }

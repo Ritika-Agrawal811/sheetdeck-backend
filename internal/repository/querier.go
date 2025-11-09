@@ -21,6 +21,8 @@ type Querier interface {
 	GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error)
 	GetDevicesSummaryByDay(ctx context.Context, days int32) ([]GetDevicesSummaryByDayRow, error)
 	GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDevicesSummaryForLast24HoursRow, error)
+	GetOSSummaryByDay(ctx context.Context, days int32) ([]GetOSSummaryByDayRow, error)
+	GetOSSummaryForLast24Hours(ctx context.Context) ([]GetOSSummaryForLast24HoursRow, error)
 	GetPageviewTimeseriesByDay(ctx context.Context, days int32) ([]GetPageviewTimeseriesByDayRow, error)
 	GetPageviewTimeseriesForLast24Hours(ctx context.Context) ([]GetPageviewTimeseriesForLast24HoursRow, error)
 	GetSubcategories(ctx context.Context) ([]string, error)
