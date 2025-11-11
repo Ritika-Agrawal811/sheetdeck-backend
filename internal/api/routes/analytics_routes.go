@@ -15,6 +15,7 @@ func setupAnalyticsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer
 	analyticsGroup.GET("/summary/os", analyticsHandler.GetOperatingSystemsStats)
 	analyticsGroup.GET("/summary/referrers", analyticsHandler.GetReferrerStats)
 	analyticsGroup.GET("/summary/routes", analyticsHandler.GetRoutesStats)
+	analyticsGroup.GET("/summary/countries", analyticsHandler.GetCountriesStats)
 	analyticsGroup.POST("/pageview", analyticsHandler.RecordPageView)
 	analyticsGroup.POST("/event", analyticsHandler.RecordEvent)
 

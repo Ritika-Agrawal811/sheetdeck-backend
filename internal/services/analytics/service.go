@@ -23,6 +23,7 @@ type AnalyticsService interface {
 	GetOperatingSystemsStats(ctx context.Context, period string) (*dtos.OperatingSystemStatsResponse, error)
 	GetReferrerStats(ctx context.Context, period string) (*dtos.ReferrerStatsResponse, error)
 	GetRoutesStats(ctx context.Context, period string) (*dtos.RoutesStatsResponse, error)
+	GetCountriesStats(ctx context.Context, period string) (*dtos.CountriesStatsResponse, error)
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
 	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
@@ -38,6 +39,94 @@ func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
 	return &analyticsService{
 		repo:   repo,
 		geoSdk: geoSdk,
+	}
+}
+
+/**
+ * Get countries metrics by period - 24h, 7d, 30d etc.
+ * @param period string
+ * @return *dtos.CountriesStatsResponse, error
+ */
+func (s *analyticsService) GetCountriesStats(ctx context.Context, period string) (*dtos.CountriesStatsResponse, error) {
+	// check if period is valid
+	periodData, ok := entities.PeriodConfigs[period]
+	if !ok {
+		return nil, fmt.Errorf("invalid period: %s", period)
+	}
+
+	var data interface{}
+	var err error
+
+	switch period {
+	case "24h":
+		data, err = s.repo.GetCountriesSummaryForLast24Hours(ctx)
+
+	case "7d", "30d", "3m", "6m", "12m":
+		data, err = s.repo.GetCountriesSummaryByDay(ctx, int32(periodData.Days))
+
+	default:
+		return nil, fmt.Errorf("invalid period")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch referrer stats: %w", err)
+	}
+
+	countries := buildCountriesStats(data)
+	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
+
+	stats := &dtos.CountriesStatsResponse{
+		Period:              period,
+		StartDate:           startDate,
+		EndDate:             endDate,
+		TotalViews:          countries.TotalViews,
+		TotalUniqueVisitors: countries.TotalUniqueVisitors,
+		Countries:           countries.Countries,
+	}
+
+	return stats, nil
+}
+
+/**
+ * Build countries stats from database rows
+ * @param data interface{}
+ * @return *entities.CountriesStats
+ */
+func buildCountriesStats(data interface{}) *entities.CountriesStats {
+	var countries []dtos.DataStat
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetCountriesSummaryForLast24HoursRow:
+		countries = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			countries = append(countries, dtos.DataStat{
+				Name:     r.Country.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	case []repository.GetCountriesSummaryByDayRow:
+		countries = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			countries = append(countries, dtos.DataStat{
+				Name:     r.Country.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	}
+
+	return &entities.CountriesStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		Countries:           countries,
 	}
 }
 
@@ -89,7 +178,7 @@ func (s *analyticsService) GetRoutesStats(ctx context.Context, period string) (*
 /**
  * Build routes stats from database rows
  * @param data interface{}
- * @return *entities.ReferrerStats
+ * @return *entities.RoutesStats
  */
 func buildRoutesStats(data interface{}) *entities.RoutesStats {
 	var routes []dtos.DataStat

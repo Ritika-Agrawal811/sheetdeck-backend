@@ -21,6 +21,7 @@ WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
 GROUP BY browser
+ORDER BY views DESC
 `
 
 type GetBrowsersSummaryByDayRow struct {
@@ -58,6 +59,7 @@ FROM pageviews
 WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY browser
+ORDER BY views DESC
 `
 
 type GetBrowsersSummaryForLast24HoursRow struct {
@@ -76,6 +78,83 @@ func (q *Queries) GetBrowsersSummaryForLast24Hours(ctx context.Context) ([]GetBr
 	for rows.Next() {
 		var i GetBrowsersSummaryForLast24HoursRow
 		if err := rows.Scan(&i.Browser, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCountriesSummaryByDay = `-- name: GetCountriesSummaryByDay :many
+SELECT 
+   DISTINCT(country), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
+ AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY country
+ORDER BY views DESC
+`
+
+type GetCountriesSummaryByDayRow struct {
+	Country        pgtype.Text `json:"country"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getCountriesSummaryByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCountriesSummaryByDayRow{}
+	for rows.Next() {
+		var i GetCountriesSummaryByDayRow
+		if err := rows.Scan(&i.Country, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCountriesSummaryForLast24Hours = `-- name: GetCountriesSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(country), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY country
+ORDER BY views DESC
+`
+
+type GetCountriesSummaryForLast24HoursRow struct {
+	Country        pgtype.Text `json:"country"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetCountriesSummaryForLast24Hours(ctx context.Context) ([]GetCountriesSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getCountriesSummaryForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCountriesSummaryForLast24HoursRow{}
+	for rows.Next() {
+		var i GetCountriesSummaryForLast24HoursRow
+		if err := rows.Scan(&i.Country, &i.Views, &i.UniqueVisitors); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -308,6 +387,7 @@ WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND os IS NOT NULL
 GROUP BY os_group
+ORDER BY views DESC
 `
 
 type GetOSSummaryByDayRow struct {
@@ -361,6 +441,7 @@ WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
   AND os IS NOT NULL
 GROUP BY os_group
+ORDER BY views DESC
 `
 
 type GetOSSummaryForLast24HoursRow struct {
@@ -400,6 +481,7 @@ WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND referrer IS NOT NULL
 GROUP BY referrer
+ORDER BY views DESC
 `
 
 type GetReferrerSummaryByDayRow struct {
@@ -436,8 +518,9 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
  AND viewed_at >= NOW() - INTERVAL '23 hours'
-  AND referrer IS NOT NULL
+ AND referrer IS NOT NULL
 GROUP BY referrer
+ORDER BY views DESC
 `
 
 type GetReferrerSummaryForLast24HoursRow struct {
@@ -474,8 +557,9 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
-  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+ AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
 GROUP BY pathname
+ORDER BY views DESC
 `
 
 type GetRoutesSummaryByDayRow struct {
@@ -513,6 +597,7 @@ FROM pageviews
 WHERE browser != 'Headless Chrome'
  AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY pathname
+ORDER BY views DESC
 `
 
 type GetRoutesSummaryForLast24HoursRow struct {

@@ -87,7 +87,8 @@ FROM pageviews
 WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
-GROUP BY browser;
+GROUP BY browser
+ORDER BY views DESC;
 
 -- name: GetBrowsersSummaryForLast24Hours :many
 SELECT 
@@ -97,7 +98,8 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
-GROUP BY browser;
+GROUP BY browser
+ORDER BY views DESC;
 
 -- name: GetOSSummaryByDay :many
 SELECT 
@@ -124,7 +126,8 @@ WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND os IS NOT NULL
-GROUP BY os_group;
+GROUP BY os_group
+ORDER BY views DESC;
 
 -- name: GetOSSummaryForLast24Hours :many
 SELECT 
@@ -150,7 +153,8 @@ FROM pageviews
 WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
   AND os IS NOT NULL
-GROUP BY os_group;
+GROUP BY os_group
+ORDER BY views DESC;
 
 -- name: GetReferrerSummaryByDay :many
 SELECT 
@@ -162,7 +166,8 @@ WHERE browser != 'Headless Chrome'
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND referrer IS NOT NULL
-GROUP BY referrer;
+GROUP BY referrer
+ORDER BY views DESC;
 
 -- name: GetReferrerSummaryForLast24Hours :many
 SELECT 
@@ -172,8 +177,9 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
  AND viewed_at >= NOW() - INTERVAL '23 hours'
-  AND referrer IS NOT NULL
-GROUP BY referrer;
+ AND referrer IS NOT NULL
+GROUP BY referrer
+ORDER BY views DESC;
 
 -- name: GetRoutesSummaryByDay :many
 SELECT 
@@ -183,8 +189,9 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
-  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
-GROUP BY pathname;
+ AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY pathname
+ORDER BY views DESC;
 
 -- name: GetRoutesSummaryForLast24Hours :many
 SELECT 
@@ -194,10 +201,31 @@ SELECT
 FROM pageviews 
 WHERE browser != 'Headless Chrome'
  AND viewed_at >= NOW() - INTERVAL '23 hours'
-GROUP BY pathname;
+GROUP BY pathname
+ORDER BY views DESC;
 
+-- name: GetCountriesSummaryByDay :many
+SELECT 
+   DISTINCT(country), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
+ AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY country
+ORDER BY views DESC;
 
-
+-- name: GetCountriesSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(country), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY country
+ORDER BY views DESC;
 
 
 

@@ -19,6 +19,8 @@ type Querier interface {
 	GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsRow, error)
 	GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetCheatsheetByIDRow, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error)
+	GetCountriesSummaryByDay(ctx context.Context, days int32) ([]GetCountriesSummaryByDayRow, error)
+	GetCountriesSummaryForLast24Hours(ctx context.Context) ([]GetCountriesSummaryForLast24HoursRow, error)
 	GetDevicesSummaryByDay(ctx context.Context, days int32) ([]GetDevicesSummaryByDayRow, error)
 	GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDevicesSummaryForLast24HoursRow, error)
 	GetMetricsTimeseriesByDay(ctx context.Context, days int32) ([]GetMetricsTimeseriesByDayRow, error)

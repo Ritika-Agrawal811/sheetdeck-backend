@@ -54,3 +54,9 @@ type RoutesStats struct {
 	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
 	Routes              []dtos.DataStat `json:"routes"`
 }
+
+type CountriesStats struct {
+	TotalViews          int64           `json:"total_views"`
+	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
+	Countries           []dtos.DataStat `json:"countries"`
+}

@@ -221,6 +221,13 @@ func (h *AnalyticsHandler) GetReferrerStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+/**
+ * Fetch routes stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.RoutesStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch routes stats"}
+ * @router /api/analytics/summary/routes [get]
+ */
 func (h *AnalyticsHandler) GetRoutesStats(c *gin.Context) {
 	period := c.Query("period")
 
@@ -236,6 +243,34 @@ func (h *AnalyticsHandler) GetRoutesStats(c *gin.Context) {
 	stats, err := h.service.GetRoutesStats(ctx, period)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch routes stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+/**
+ * Fetch countries stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.ReferrerStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch referrer stats"}
+ * @router /api/analytics/summary/referrer [get]
+ */
+func (h *AnalyticsHandler) GetCountriesStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetCountriesStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch countries stats: %v", err.Error())})
 		return
 	}
 
