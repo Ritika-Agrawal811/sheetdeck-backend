@@ -17,10 +17,10 @@ var PeriodConfigs = map[string]PeriodConfig{
 	"12m": {Days: 364},
 }
 
-type PageviewSeries struct {
-	TotalViews          int64               `json:"total_views"`
-	TotalUniqueVisitors int64               `json:"total_unique_visitors"`
-	Intervals           []dtos.PageviewStat `json:"intervals"`
+type MetricswSeries struct {
+	TotalViews          int64                  `json:"total_views"`
+	TotalUniqueVisitors int64                  `json:"total_unique_visitors"`
+	Intervals           []dtos.MetricsOverview `json:"intervals"`
 }
 
 type DeviceStats struct {
@@ -32,13 +32,19 @@ type DeviceStats struct {
 }
 
 type BrowserStats struct {
-	TotalViews          int64              `json:"total_views"`
-	TotalUniqueVisitors int64              `json:"total_unique_visitors"`
-	Browsers            []dtos.BrowserStat `json:"browsers"`
+	TotalViews          int64           `json:"total_views"`
+	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
+	Browsers            []dtos.DataStat `json:"browsers"`
 }
 
 type OperatingSystemStats struct {
-	TotalViews          int64                      `json:"total_views"`
-	TotalUniqueVisitors int64                      `json:"total_unique_visitors"`
-	OperatingSystems    []dtos.OperatingSystemStat `json:"operating_systems"`
+	TotalViews          int64           `json:"total_views"`
+	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
+	OperatingSystems    []dtos.DataStat `json:"operating_systems"`
+}
+
+type ReferrerStats struct {
+	TotalViews          int64           `json:"total_views"`
+	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
+	Referrers           []dtos.DataStat `json:"referrers"`
 }

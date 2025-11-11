@@ -6,7 +6,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 SELECT COUNT(id) as total_views, COUNT(DISTINCT hashed_ip) as total_visitors
 FROM pageviews;
 
--- name: GetPageviewTimeseriesByDay :many
+-- name: GetMetricsTimeseriesByDay :many
 SELECT 
     d::date AS date,
     COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
@@ -22,7 +22,7 @@ LEFT JOIN pageviews p
 GROUP BY d
 ORDER BY d;
 
--- name: GetPageviewTimeseriesForLast24Hours :many
+-- name: GetMetricsTimeseriesForLast24Hours :many
 SELECT 
     h::timestamp AS hour,
     COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
@@ -151,6 +151,29 @@ WHERE browser != 'Headless Chrome'
   AND viewed_at >= NOW() - INTERVAL '23 hours'
   AND os IS NOT NULL
 GROUP BY os_group;
+
+-- name: GetReferrerSummaryByDay :many
+SELECT 
+   DISTINCT(referrer), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+  AND referrer IS NOT NULL
+GROUP BY referrer;
+
+-- name: GetReferrerSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(referrer), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+  AND referrer IS NOT NULL
+GROUP BY referrer;
 
 
 
