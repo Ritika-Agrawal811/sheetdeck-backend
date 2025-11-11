@@ -48,3 +48,9 @@ type ReferrerStats struct {
 	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
 	Referrers           []dtos.DataStat `json:"referrers"`
 }
+
+type RoutesStats struct {
+	TotalViews          int64           `json:"total_views"`
+	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
+	Routes              []dtos.DataStat `json:"routes"`
+}
