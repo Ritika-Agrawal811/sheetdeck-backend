@@ -9,10 +9,11 @@ func setupAnalyticsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer
 	analyticsHandler := handlers.NewAnalyticsHandler(services.AnalyticsService)
 	analyticsGroup := apiGroup.Group("/analytics")
 
-	analyticsGroup.GET("/pageviews", analyticsHandler.GetPageviewsStats)
+	analyticsGroup.GET("/overview", analyticsHandler.GetMetricsOverview)
 	analyticsGroup.GET("/summary/devices", analyticsHandler.GetDevicesStats)
 	analyticsGroup.GET("/summary/browsers", analyticsHandler.GetBrowsersStats)
 	analyticsGroup.GET("/summary/os", analyticsHandler.GetOperatingSystemsStats)
+	analyticsGroup.GET("/summary/referrers", analyticsHandler.GetReferrerStats)
 	analyticsGroup.POST("/pageview", analyticsHandler.RecordPageView)
 	analyticsGroup.POST("/event", analyticsHandler.RecordEvent)
 

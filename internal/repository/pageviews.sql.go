@@ -196,6 +196,92 @@ func (q *Queries) GetDevicesSummaryForLast24Hours(ctx context.Context) ([]GetDev
 	return items, nil
 }
 
+const getMetricsTimeseriesByDay = `-- name: GetMetricsTimeseriesByDay :many
+SELECT 
+    d::date AS date,
+    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
+    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
+FROM generate_series(
+    (NOW() - make_interval(days => $1::int))::date,
+    NOW()::date,
+    '1 day'
+) AS d
+LEFT JOIN pageviews p
+    ON DATE_TRUNC('day', p.viewed_at)::date = d
+    AND p.browser != 'Headless Chrome'
+GROUP BY d
+ORDER BY d
+`
+
+type GetMetricsTimeseriesByDayRow struct {
+	Date           pgtype.Date `json:"date"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
+}
+
+func (q *Queries) GetMetricsTimeseriesByDay(ctx context.Context, days int32) ([]GetMetricsTimeseriesByDayRow, error) {
+	rows, err := q.db.Query(ctx, getMetricsTimeseriesByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMetricsTimeseriesByDayRow{}
+	for rows.Next() {
+		var i GetMetricsTimeseriesByDayRow
+		if err := rows.Scan(&i.Date, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMetricsTimeseriesForLast24Hours = `-- name: GetMetricsTimeseriesForLast24Hours :many
+SELECT 
+    h::timestamp AS hour,
+    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
+    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
+FROM generate_series(
+    date_trunc('hour', NOW() - INTERVAL '23 hours'),
+    date_trunc('hour', NOW()),
+    '1 hour'
+) AS h
+LEFT JOIN pageviews p
+    ON date_trunc('hour', p.viewed_at) = h
+    AND p.browser != 'Headless Chrome'
+GROUP BY h
+ORDER BY h
+`
+
+type GetMetricsTimeseriesForLast24HoursRow struct {
+	Hour           pgtype.Timestamp `json:"hour"`
+	Views          int64            `json:"views"`
+	UniqueVisitors int64            `json:"unique_visitors"`
+}
+
+func (q *Queries) GetMetricsTimeseriesForLast24Hours(ctx context.Context) ([]GetMetricsTimeseriesForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getMetricsTimeseriesForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMetricsTimeseriesForLast24HoursRow{}
+	for rows.Next() {
+		var i GetMetricsTimeseriesForLast24HoursRow
+		if err := rows.Scan(&i.Hour, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOSSummaryByDay = `-- name: GetOSSummaryByDay :many
 SELECT 
    CASE 
@@ -303,39 +389,35 @@ func (q *Queries) GetOSSummaryForLast24Hours(ctx context.Context) ([]GetOSSummar
 	return items, nil
 }
 
-const getPageviewTimeseriesByDay = `-- name: GetPageviewTimeseriesByDay :many
+const getReferrerSummaryByDay = `-- name: GetReferrerSummaryByDay :many
 SELECT 
-    d::date AS date,
-    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
-    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
-FROM generate_series(
-    (NOW() - make_interval(days => $1::int))::date,
-    NOW()::date,
-    '1 day'
-) AS d
-LEFT JOIN pageviews p
-    ON DATE_TRUNC('day', p.viewed_at)::date = d
-    AND p.browser != 'Headless Chrome'
-GROUP BY d
-ORDER BY d
+   DISTINCT(referrer), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+  AND referrer IS NOT NULL
+GROUP BY referrer
 `
 
-type GetPageviewTimeseriesByDayRow struct {
-	Date           pgtype.Date `json:"date"`
+type GetReferrerSummaryByDayRow struct {
+	Referrer       pgtype.Text `json:"referrer"`
 	Views          int64       `json:"views"`
 	UniqueVisitors int64       `json:"unique_visitors"`
 }
 
-func (q *Queries) GetPageviewTimeseriesByDay(ctx context.Context, days int32) ([]GetPageviewTimeseriesByDayRow, error) {
-	rows, err := q.db.Query(ctx, getPageviewTimeseriesByDay, days)
+func (q *Queries) GetReferrerSummaryByDay(ctx context.Context, days int32) ([]GetReferrerSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getReferrerSummaryByDay, days)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetPageviewTimeseriesByDayRow{}
+	items := []GetReferrerSummaryByDayRow{}
 	for rows.Next() {
-		var i GetPageviewTimeseriesByDayRow
-		if err := rows.Scan(&i.Date, &i.Views, &i.UniqueVisitors); err != nil {
+		var i GetReferrerSummaryByDayRow
+		if err := rows.Scan(&i.Referrer, &i.Views, &i.UniqueVisitors); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -346,39 +428,34 @@ func (q *Queries) GetPageviewTimeseriesByDay(ctx context.Context, days int32) ([
 	return items, nil
 }
 
-const getPageviewTimeseriesForLast24Hours = `-- name: GetPageviewTimeseriesForLast24Hours :many
+const getReferrerSummaryForLast24Hours = `-- name: GetReferrerSummaryForLast24Hours :many
 SELECT 
-    h::timestamp AS hour,
-    COALESCE(COUNT(p.viewed_at), 0)::bigint AS views,
-    COALESCE(COUNT(DISTINCT p.hashed_ip), 0)::bigint AS unique_visitors
-FROM generate_series(
-    date_trunc('hour', NOW() - INTERVAL '23 hours'),
-    date_trunc('hour', NOW()),
-    '1 hour'
-) AS h
-LEFT JOIN pageviews p
-    ON date_trunc('hour', p.viewed_at) = h
-    AND p.browser != 'Headless Chrome'
-GROUP BY h
-ORDER BY h
+   DISTINCT(referrer), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+  AND referrer IS NOT NULL
+GROUP BY referrer
 `
 
-type GetPageviewTimeseriesForLast24HoursRow struct {
-	Hour           pgtype.Timestamp `json:"hour"`
-	Views          int64            `json:"views"`
-	UniqueVisitors int64            `json:"unique_visitors"`
+type GetReferrerSummaryForLast24HoursRow struct {
+	Referrer       pgtype.Text `json:"referrer"`
+	Views          int64       `json:"views"`
+	UniqueVisitors int64       `json:"unique_visitors"`
 }
 
-func (q *Queries) GetPageviewTimeseriesForLast24Hours(ctx context.Context) ([]GetPageviewTimeseriesForLast24HoursRow, error) {
-	rows, err := q.db.Query(ctx, getPageviewTimeseriesForLast24Hours)
+func (q *Queries) GetReferrerSummaryForLast24Hours(ctx context.Context) ([]GetReferrerSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getReferrerSummaryForLast24Hours)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetPageviewTimeseriesForLast24HoursRow{}
+	items := []GetReferrerSummaryForLast24HoursRow{}
 	for rows.Next() {
-		var i GetPageviewTimeseriesForLast24HoursRow
-		if err := rows.Scan(&i.Hour, &i.Views, &i.UniqueVisitors); err != nil {
+		var i GetReferrerSummaryForLast24HoursRow
+		if err := rows.Scan(&i.Referrer, &i.Views, &i.UniqueVisitors); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

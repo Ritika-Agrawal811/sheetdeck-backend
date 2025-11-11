@@ -17,10 +17,11 @@ import (
 )
 
 type AnalyticsService interface {
-	GetPageviewsStats(ctx context.Context, period string) (*dtos.PageviewStatsResponse, error)
+	GetMetricsOverview(ctx context.Context, period string) (*dtos.MetricsOverviewResponse, error)
 	GetDeviceStats(ctx context.Context, period string) (*dtos.DeviceStatsResponse, error)
 	GetBrowserStats(ctx context.Context, period string) (*dtos.BrowserStatsResponse, error)
 	GetOperatingSystemsStats(ctx context.Context, period string) (*dtos.OperatingSystemStatsResponse, error)
+	GetReferrerStats(ctx context.Context, period string) (*dtos.ReferrerStatsResponse, error)
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
 	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
@@ -40,6 +41,93 @@ func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
 }
 
 /**
+ * Get referrer metrics by period - 24h, 7d, 30d etc.
+ * @param period string
+ * @return *dtos.ReferrerStatsResponse, error
+ */
+func (s *analyticsService) GetReferrerStats(ctx context.Context, period string) (*dtos.ReferrerStatsResponse, error) {
+	// check if period is valid
+	periodData, ok := entities.PeriodConfigs[period]
+	if !ok {
+		return nil, fmt.Errorf("invalid period: %s", period)
+	}
+
+	var data interface{}
+	var err error
+
+	switch period {
+	case "24h":
+		data, err = s.repo.GetReferrerSummaryForLast24Hours(ctx)
+
+	case "7d", "30d", "3m", "6m", "12m":
+		data, err = s.repo.GetReferrerSummaryByDay(ctx, int32(periodData.Days))
+
+	default:
+		return nil, fmt.Errorf("invalid period")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch referrer stats: %w", err)
+	}
+
+	referrers := buildReferrerStats(data)
+	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
+
+	stats := &dtos.ReferrerStatsResponse{
+		Period:              period,
+		StartDate:           startDate,
+		EndDate:             endDate,
+		TotalViews:          referrers.TotalViews,
+		TotalUniqueVisitors: referrers.TotalUniqueVisitors,
+		Referrers:           referrers.Referrers,
+	}
+
+	return stats, nil
+}
+
+/**
+ * Build referrer stats from database rows
+ * @param data interface{}
+ * @return *entities.ReferrerStats
+ */
+func buildReferrerStats(data interface{}) *entities.ReferrerStats {
+	var referrers []dtos.DataStat
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetReferrerSummaryByDayRow:
+		referrers = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			referrers = append(referrers, dtos.DataStat{
+				Name:     r.Referrer.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+
+	case []repository.GetReferrerSummaryForLast24HoursRow:
+		referrers = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			referrers = append(referrers, dtos.DataStat{
+				Name:     r.Referrer.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	}
+
+	return &entities.ReferrerStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		Referrers:           referrers,
+	}
+}
+
+/**
  * Get operating systems metrics by period - 24h, 7d, 30d etc.
  * @param period string
  * @return *dtos.OperatingSystemStatsResponse, error
@@ -51,14 +139,14 @@ func (s *analyticsService) GetOperatingSystemsStats(ctx context.Context, period 
 		return nil, fmt.Errorf("invalid period: %s", period)
 	}
 
-	var osData *entities.OperatingSystemStats
+	var data interface{}
 	var err error
 
 	switch period {
 	case "24h":
-		osData, err = s.getOperatingSystemsStatsForLast24Hours(ctx)
+		data, err = s.repo.GetOSSummaryForLast24Hours(ctx)
 	case "7d", "30d", "3m", "6m", "12m":
-		osData, err = s.getOperatingSystemsStatsByDay(ctx, int32(periodData.Days))
+		data, err = s.repo.GetOSSummaryByDay(ctx, int32(periodData.Days))
 	default:
 		return nil, fmt.Errorf("invalid period")
 	}
@@ -67,6 +155,7 @@ func (s *analyticsService) GetOperatingSystemsStats(ctx context.Context, period 
 		return nil, fmt.Errorf("failed to fetch operating systems data: %w", err)
 	}
 
+	osData := buildOperatingSystemStats(data)
 	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
 
 	stats := &dtos.OperatingSystemStatsResponse{
@@ -82,71 +171,47 @@ func (s *analyticsService) GetOperatingSystemsStats(ctx context.Context, period 
 }
 
 /**
- * Get operating systems stats  by period - 24h, 7d, 30d etc.
- * @return *entities.OperatingSystemStats, error
+ * Build os stats from database rows
+ * @param data interface{}
+ * @return *entities.OperatingSystemStats
  */
-func (s *analyticsService) getOperatingSystemsStatsByDay(ctx context.Context, days int32) (*entities.OperatingSystemStats, error) {
-	osData, err := s.repo.GetOSSummaryByDay(ctx, days)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch operating systems stats: %w", err)
+func buildOperatingSystemStats(data interface{}) *entities.OperatingSystemStats {
+	var osData []dtos.DataStat
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetOSSummaryByDayRow:
+		osData = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			osData = append(osData, dtos.DataStat{
+				Name:     r.OsGroup,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+
+	case []repository.GetOSSummaryForLast24HoursRow:
+		osData = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			osData = append(osData, dtos.DataStat{
+				Name:     r.OsGroup,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
 	}
 
-	operatingSystems := make([]dtos.OperatingSystemStat, 0, len(osData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range osData {
-		operatingSystems = append(operatingSystems, dtos.OperatingSystemStat{
-			OS:       data.OsGroup,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.OperatingSystemStats{
+	return &entities.OperatingSystemStats{
 		TotalViews:          totalViews,
 		TotalUniqueVisitors: uniqueVisitors,
-		OperatingSystems:    operatingSystems,
+		OperatingSystems:    osData,
 	}
-
-	return response, nil
-}
-
-/**
- * Get operating systems stats for last 24 hours
- * @return *entities.OperatingSystemStats, error
- */
-func (s *analyticsService) getOperatingSystemsStatsForLast24Hours(ctx context.Context) (*entities.OperatingSystemStats, error) {
-	osData, err := s.repo.GetOSSummaryForLast24Hours(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch operating systems stats: %w", err)
-	}
-
-	operatingSystems := make([]dtos.OperatingSystemStat, 0, len(osData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range osData {
-		operatingSystems = append(operatingSystems, dtos.OperatingSystemStat{
-			OS:       data.OsGroup,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.OperatingSystemStats{
-		TotalViews:          totalViews,
-		TotalUniqueVisitors: uniqueVisitors,
-		OperatingSystems:    operatingSystems,
-	}
-
-	return response, nil
 }
 
 /**
@@ -161,14 +226,14 @@ func (s analyticsService) GetBrowserStats(ctx context.Context, period string) (*
 		return nil, fmt.Errorf("invalid period: %s", period)
 	}
 
-	var browserssData *entities.BrowserStats
+	var data interface{}
 	var err error
 
 	switch period {
 	case "24h":
-		browserssData, err = s.getBrowsersStatsForLast24Hours(ctx)
+		data, err = s.repo.GetBrowsersSummaryForLast24Hours(ctx)
 	case "7d", "30d", "3m", "6m", "12m":
-		browserssData, err = s.getBrowsersStatsByDay(ctx, int32(periodData.Days))
+		data, err = s.repo.GetBrowsersSummaryByDay(ctx, int32(periodData.Days))
 	default:
 		return nil, fmt.Errorf("invalid period")
 	}
@@ -177,87 +242,63 @@ func (s analyticsService) GetBrowserStats(ctx context.Context, period string) (*
 		return nil, fmt.Errorf("failed to fetch pageviews data: %w", err)
 	}
 
+	browserData := buildBrowserStats(data)
 	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
 
 	stats := &dtos.BrowserStatsResponse{
 		Period:              period,
 		StartDate:           startDate,
 		EndDate:             endDate,
-		TotalViews:          browserssData.TotalViews,
-		TotalUniqueVisitors: browserssData.TotalUniqueVisitors,
-		Browsers:            browserssData.Browsers,
+		TotalViews:          browserData.TotalViews,
+		TotalUniqueVisitors: browserData.TotalUniqueVisitors,
+		Browsers:            browserData.Browsers,
 	}
 
 	return stats, nil
 }
 
 /**
- * Get browsers stats by days
- * @param days int32
- * @return []*dtos.BrowserStat, error
+ * Build browser stats from database rows
+ * @param data interface{}
+ * @return *entities.BrowserStats
  */
-func (s *analyticsService) getBrowsersStatsByDay(ctx context.Context, days int32) (*entities.BrowserStats, error) {
-	browserData, err := s.repo.GetBrowsersSummaryByDay(ctx, days)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch browser stats: %w", err)
+func buildBrowserStats(data interface{}) *entities.BrowserStats {
+	var browserData []dtos.DataStat
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetBrowsersSummaryByDayRow:
+		browserData = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			browserData = append(browserData, dtos.DataStat{
+				Name:     r.Browser.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+
+		}
+	case []repository.GetBrowsersSummaryForLast24HoursRow:
+		browserData = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			browserData = append(browserData, dtos.DataStat{
+				Name:     r.Browser.String,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+
+		}
 	}
 
-	browsers := make([]dtos.BrowserStat, 0, len(browserData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range browserData {
-		browsers = append(browsers, dtos.BrowserStat{
-			Browser:  data.Browser.String,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.BrowserStats{
-		TotalViews:          totalViews,
+	return &entities.BrowserStats{
 		TotalUniqueVisitors: uniqueVisitors,
-		Browsers:            browsers,
-	}
-
-	return response, nil
-}
-
-/**
- * Get browsers stats for last 24 hours
- * @return []*dtos.BrowserStat, error
- */
-func (s *analyticsService) getBrowsersStatsForLast24Hours(ctx context.Context) (*entities.BrowserStats, error) {
-	browserData, err := s.repo.GetBrowsersSummaryForLast24Hours(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch browser stats: %w", err)
-	}
-
-	browsers := make([]dtos.BrowserStat, 0, len(browserData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range browserData {
-		browsers = append(browsers, dtos.BrowserStat{
-			Browser:  data.Browser.String,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.BrowserStats{
 		TotalViews:          totalViews,
-		TotalUniqueVisitors: uniqueVisitors,
-		Browsers:            browsers,
+		Browsers:            browserData,
 	}
 
-	return response, nil
 }
 
 /**
@@ -272,14 +313,14 @@ func (s *analyticsService) GetDeviceStats(ctx context.Context, period string) (*
 		return nil, fmt.Errorf("invalid period: %s", period)
 	}
 
-	var devicesData *entities.DeviceStats
+	var data interface{}
 	var err error
 
 	switch period {
 	case "24h":
-		devicesData, err = s.getDevicesStatsForLast24Hours(ctx)
+		data, err = s.repo.GetBrowsersSummaryForLast24Hours(ctx)
 	case "7d", "30d", "3m", "6m", "12m":
-		devicesData, err = s.getDevicesStatsByDay(ctx, int32(periodData.Days))
+		data, err = s.repo.GetDevicesSummaryByDay(ctx, int32(periodData.Days))
 	default:
 		return nil, fmt.Errorf("invalid period")
 	}
@@ -287,6 +328,8 @@ func (s *analyticsService) GetDeviceStats(ctx context.Context, period string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pageviews data: %w", err)
 	}
+
+	devicesData := buildDevicesStats(data)
 
 	// Calculate start and end dates
 	var startDate, endDate time.Time
@@ -312,92 +355,63 @@ func (s *analyticsService) GetDeviceStats(ctx context.Context, period string) (*
 }
 
 /**
- * Get devices stats by days
- * @param days int32
- * @return *entities.DeviceStats, error
+ * Build devices stats from database rows
+ * @param data interface{}
+ * @return *entities.BrowserStats
  */
-func (s *analyticsService) getDevicesStatsByDay(ctx context.Context, days int32) (*entities.DeviceStats, error) {
-	devicesData, err := s.repo.GetDevicesSummaryByDay(ctx, days)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch devices stats: %w", err)
-	}
-
-	devices := make([]dtos.DeviceStat, 0, len(devicesData))
+func buildDevicesStats(data interface{}) *entities.DeviceStats {
+	var devicesData []dtos.DeviceStat
 	var totalMobileViews, totalMobileVisitors, totalDesktopViews, totalDesktopVisitors int64
 
-	for _, data := range devicesData {
-		devices = append(devices, dtos.DeviceStat{
-			Date:            data.Date.Time,
-			MobileViews:     data.MobileViews,
-			MobileVisitors:  data.MobileVisitors,
-			DesktopViews:    data.DesktopViews,
-			DesktopVisitors: data.DesktopVisitors,
-		})
+	switch rows := data.(type) {
+	case []repository.GetDevicesSummaryByDayRow:
+		devicesData = make([]dtos.DeviceStat, 0, len(rows))
+		for _, r := range rows {
+			devicesData = append(devicesData, dtos.DeviceStat{
+				Date:            r.Date.Time,
+				MobileViews:     r.MobileViews,
+				MobileVisitors:  r.MobileVisitors,
+				DesktopViews:    r.DesktopViews,
+				DesktopVisitors: r.DesktopVisitors,
+			})
+			totalMobileViews += r.MobileViews
+			totalMobileVisitors += r.MobileVisitors
+			totalDesktopViews += r.DesktopViews
+			totalDesktopVisitors += r.DesktopVisitors
+		}
 
-		totalMobileViews += data.MobileViews
-		totalMobileVisitors += data.MobileVisitors
-		totalDesktopViews += data.DesktopViews
-		totalDesktopVisitors += data.DesktopVisitors
-
+	case []repository.GetDevicesSummaryForLast24HoursRow:
+		devicesData = make([]dtos.DeviceStat, 0, len(rows))
+		for _, r := range rows {
+			devicesData = append(devicesData, dtos.DeviceStat{
+				Date:            r.Hour.Time,
+				MobileViews:     r.MobileViews,
+				MobileVisitors:  r.MobileVisitors,
+				DesktopViews:    r.DesktopViews,
+				DesktopVisitors: r.DesktopVisitors,
+			})
+			totalMobileViews += r.MobileViews
+			totalMobileVisitors += r.MobileVisitors
+			totalDesktopViews += r.DesktopViews
+			totalDesktopVisitors += r.DesktopVisitors
+		}
 	}
 
-	response := &entities.DeviceStats{
+	return &entities.DeviceStats{
 		TotalMobileViews:     totalMobileViews,
 		TotalMobileVisitors:  totalMobileVisitors,
 		TotalDesktopViews:    totalDesktopViews,
 		TotalDesktopVisitors: totalDesktopVisitors,
-		Intervals:            devices,
+		Intervals:            devicesData,
 	}
-
-	return response, nil
-}
-
-/**
- * Get devices stats for last 24 hours
- * @return *entities.DeviceStats, error
- */
-func (s *analyticsService) getDevicesStatsForLast24Hours(ctx context.Context) (*entities.DeviceStats, error) {
-	devicesData, err := s.repo.GetDevicesSummaryForLast24Hours(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch devices stats: %w", err)
-	}
-
-	devices := make([]dtos.DeviceStat, 0, len(devicesData))
-	var totalMobileViews, totalMobileVisitors, totalDesktopViews, totalDesktopVisitors int64
-
-	for _, data := range devicesData {
-		devices = append(devices, dtos.DeviceStat{
-			Date:            data.Hour.Time,
-			MobileViews:     data.MobileViews,
-			MobileVisitors:  data.MobileVisitors,
-			DesktopViews:    data.DesktopViews,
-			DesktopVisitors: data.DesktopVisitors,
-		})
-
-		totalMobileViews += data.MobileViews
-		totalMobileVisitors += data.MobileVisitors
-		totalDesktopViews += data.DesktopViews
-		totalDesktopVisitors += data.DesktopVisitors
-
-	}
-
-	response := &entities.DeviceStats{
-		TotalMobileViews:     totalMobileViews,
-		TotalMobileVisitors:  totalMobileVisitors,
-		TotalDesktopViews:    totalDesktopViews,
-		TotalDesktopVisitors: totalDesktopVisitors,
-		Intervals:            devices,
-	}
-
-	return response, nil
 }
 
 /**
  * Get page views metrics by period - 24h, 7d, 30d etc.
  * @param period string
- * @return *dtos.PageviewStatsResponse, error
+ * @return *dtos.MetricsOverviewResponse, error
  */
-func (s *analyticsService) GetPageviewsStats(ctx context.Context, period string) (*dtos.PageviewStatsResponse, error) {
+func (s *analyticsService) GetMetricsOverview(ctx context.Context, period string) (*dtos.MetricsOverviewResponse, error) {
 
 	// check if period is valid
 	periodData, ok := entities.PeriodConfigs[period]
@@ -405,14 +419,14 @@ func (s *analyticsService) GetPageviewsStats(ctx context.Context, period string)
 		return nil, fmt.Errorf("invalid period: %s", period)
 	}
 
-	var seriesData *entities.PageviewSeries
+	var data interface{}
 	var err error
 
 	switch period {
 	case "24h":
-		seriesData, err = s.getPageviewSeriesForLast24Hours(ctx)
+		data, err = s.repo.GetMetricsTimeseriesForLast24Hours(ctx)
 	case "7d", "30d", "3m", "6m", "12m":
-		seriesData, err = s.getPageviewSeriesByDay(ctx, int32(periodData.Days))
+		data, err = s.repo.GetMetricsTimeseriesByDay(ctx, int32(periodData.Days))
 	default:
 		return nil, fmt.Errorf("invalid period")
 	}
@@ -420,6 +434,8 @@ func (s *analyticsService) GetPageviewsStats(ctx context.Context, period string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pageviews data: %w", err)
 	}
+
+	seriesData := buildMetricsOverview(data)
 
 	// Calculate start and end dates
 	var startDate, endDate time.Time
@@ -430,7 +446,7 @@ func (s *analyticsService) GetPageviewsStats(ctx context.Context, period string)
 		endDate = seriesData.Intervals[length-1].Date
 	}
 
-	stats := &dtos.PageviewStatsResponse{
+	stats := &dtos.MetricsOverviewResponse{
 		Period:              period,
 		StartDate:           startDate,
 		EndDate:             endDate,
@@ -443,72 +459,46 @@ func (s *analyticsService) GetPageviewsStats(ctx context.Context, period string)
 }
 
 /**
- * Get page views timeseries, total views and visitors for last 24 hours
- * @return *entities.PageviewSeries, error
+ * Build metrics stats from database rows
+ * @param data interface{}
+ * @return *entities.BrowserStats
  */
-func (s *analyticsService) getPageviewSeriesForLast24Hours(ctx context.Context) (*entities.PageviewSeries, error) {
-	timeseriesData, err := s.repo.GetPageviewTimeseriesForLast24Hours(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch page views stats: %w", err)
+func buildMetricsOverview(data interface{}) *entities.MetricswSeries {
+	var metricsData []dtos.MetricsOverview
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetMetricsTimeseriesByDayRow:
+		metricsData = make([]dtos.MetricsOverview, 0, len(rows))
+		for _, r := range rows {
+			metricsData = append(metricsData, dtos.MetricsOverview{
+				Date:     r.Date.Time,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	case []repository.GetMetricsTimeseriesForLast24HoursRow:
+		metricsData = make([]dtos.MetricsOverview, 0, len(rows))
+		for _, r := range rows {
+			metricsData = append(metricsData, dtos.MetricsOverview{
+				Date:     r.Hour.Time,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
 	}
 
-	intervals := make([]dtos.PageviewStat, 0, len(timeseriesData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range timeseriesData {
-		intervals = append(intervals, dtos.PageviewStat{
-			Date:     data.Hour.Time,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.PageviewSeries{
+	return &entities.MetricswSeries{
 		TotalViews:          totalViews,
 		TotalUniqueVisitors: uniqueVisitors,
-		Intervals:           intervals,
+		Intervals:           metricsData,
 	}
-
-	return response, nil
-}
-
-/**
- * Get page views timeseries, total views and visitors by days
- * @param days int32
- * @return *entities.PageviewSeries, error
- */
-func (s *analyticsService) getPageviewSeriesByDay(ctx context.Context, days int32) (*entities.PageviewSeries, error) {
-	timeseriesData, err := s.repo.GetPageviewTimeseriesByDay(ctx, days)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch page views stats: %w", err)
-	}
-
-	intervals := make([]dtos.PageviewStat, 0, len(timeseriesData))
-	var totalViews int64
-	var uniqueVisitors int64
-
-	for _, data := range timeseriesData {
-		intervals = append(intervals, dtos.PageviewStat{
-			Date:     data.Date.Time,
-			Views:    data.Views,
-			Visitors: data.UniqueVisitors,
-		})
-
-		totalViews += data.Views
-		uniqueVisitors += data.UniqueVisitors
-	}
-
-	response := &entities.PageviewSeries{
-		TotalViews:          totalViews,
-		TotalUniqueVisitors: uniqueVisitors,
-		Intervals:           intervals,
-	}
-
-	return response, nil
 }
 
 /**

@@ -88,7 +88,7 @@ func (h *AnalyticsHandler) RecordEvent(c *gin.Context) {
  * @failure 500 {object} map[string]string{"error": "Failed to fetch page view stats"}
  * @router /api/analytics/pageviews [get]
  */
-func (h *AnalyticsHandler) GetPageviewsStats(c *gin.Context) {
+func (h *AnalyticsHandler) GetMetricsOverview(c *gin.Context) {
 	period := c.Query("period")
 
 	if period == "" {
@@ -100,7 +100,7 @@ func (h *AnalyticsHandler) GetPageviewsStats(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
-	stats, err := h.service.GetPageviewsStats(ctx, period)
+	stats, err := h.service.GetMetricsOverview(ctx, period)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch page view stats: %v", err.Error())})
 		return
@@ -187,6 +187,34 @@ func (h *AnalyticsHandler) GetOperatingSystemsStats(c *gin.Context) {
 	stats, err := h.service.GetOperatingSystemsStats(ctx, period)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch operating systems stats: %v", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+/**
+ * Fetch referrer stats
+ * @param c *gin.Context
+ * @success 200 {object} dtos.ReferrerStatsResponse
+ * @failure 500 {object} map[string]string{"error": "Failed to fetch referrer stats"}
+ * @router /api/analytics/summary/referrer [get]
+ */
+func (h *AnalyticsHandler) GetReferrerStats(c *gin.Context) {
+	period := c.Query("period")
+
+	if period == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period can not be empty"})
+		return
+	}
+
+	// Create a context with 45 seconds timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	stats, err := h.service.GetReferrerStats(ctx, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch referrer stats: %v", err.Error())})
 		return
 	}
 
