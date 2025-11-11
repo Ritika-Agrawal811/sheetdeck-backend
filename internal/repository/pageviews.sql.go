@@ -466,6 +466,81 @@ func (q *Queries) GetReferrerSummaryForLast24Hours(ctx context.Context) ([]GetRe
 	return items, nil
 }
 
+const getRoutesSummaryByDay = `-- name: GetRoutesSummaryByDay :many
+SELECT 
+   DISTINCT(pathname), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY pathname
+`
+
+type GetRoutesSummaryByDayRow struct {
+	Pathname       string `json:"pathname"`
+	Views          int64  `json:"views"`
+	UniqueVisitors int64  `json:"unique_visitors"`
+}
+
+func (q *Queries) GetRoutesSummaryByDay(ctx context.Context, days int32) ([]GetRoutesSummaryByDayRow, error) {
+	rows, err := q.db.Query(ctx, getRoutesSummaryByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRoutesSummaryByDayRow{}
+	for rows.Next() {
+		var i GetRoutesSummaryByDayRow
+		if err := rows.Scan(&i.Pathname, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRoutesSummaryForLast24Hours = `-- name: GetRoutesSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(pathname), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY pathname
+`
+
+type GetRoutesSummaryForLast24HoursRow struct {
+	Pathname       string `json:"pathname"`
+	Views          int64  `json:"views"`
+	UniqueVisitors int64  `json:"unique_visitors"`
+}
+
+func (q *Queries) GetRoutesSummaryForLast24Hours(ctx context.Context) ([]GetRoutesSummaryForLast24HoursRow, error) {
+	rows, err := q.db.Query(ctx, getRoutesSummaryForLast24Hours)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRoutesSummaryForLast24HoursRow{}
+	for rows.Next() {
+		var i GetRoutesSummaryForLast24HoursRow
+		if err := rows.Scan(&i.Pathname, &i.Views, &i.UniqueVisitors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalViewsAndVisitors = `-- name: GetTotalViewsAndVisitors :one
 SELECT COUNT(id) as total_views, COUNT(DISTINCT hashed_ip) as total_visitors
 FROM pageviews

@@ -22,6 +22,7 @@ type AnalyticsService interface {
 	GetBrowserStats(ctx context.Context, period string) (*dtos.BrowserStatsResponse, error)
 	GetOperatingSystemsStats(ctx context.Context, period string) (*dtos.OperatingSystemStatsResponse, error)
 	GetReferrerStats(ctx context.Context, period string) (*dtos.ReferrerStatsResponse, error)
+	GetRoutesStats(ctx context.Context, period string) (*dtos.RoutesStatsResponse, error)
 	RecordPageView(ctx context.Context, details dtos.PageviewRequest) error
 	RecordEvent(ctx context.Context, details dtos.EventRequest) error
 }
@@ -38,6 +39,95 @@ func NewAnalyticsService(repo *repository.Queries) AnalyticsService {
 		repo:   repo,
 		geoSdk: geoSdk,
 	}
+}
+
+/**
+ * Get routes metrics by period - 24h, 7d, 30d etc.
+ * @param period string
+ * @return *dtos.RoutesStatsResponse, error
+ */
+func (s *analyticsService) GetRoutesStats(ctx context.Context, period string) (*dtos.RoutesStatsResponse, error) {
+	// check if period is valid
+	periodData, ok := entities.PeriodConfigs[period]
+	if !ok {
+		return nil, fmt.Errorf("invalid period: %s", period)
+	}
+
+	var data interface{}
+	var err error
+
+	switch period {
+	case "24h":
+		data, err = s.repo.GetRoutesSummaryForLast24Hours(ctx)
+
+	case "7d", "30d", "3m", "6m", "12m":
+		data, err = s.repo.GetRoutesSummaryByDay(ctx, int32(periodData.Days))
+
+	default:
+		return nil, fmt.Errorf("invalid period")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch referrer stats: %w", err)
+	}
+
+	routes := buildRoutesStats(data)
+	startDate, endDate := getStartAndEndDatesForPeriod(int64(periodData.Days))
+
+	stats := &dtos.RoutesStatsResponse{
+		Period:              period,
+		StartDate:           startDate,
+		EndDate:             endDate,
+		TotalViews:          routes.TotalViews,
+		TotalUniqueVisitors: routes.TotalUniqueVisitors,
+		Routes:              routes.Routes,
+	}
+
+	return stats, nil
+}
+
+/**
+ * Build routes stats from database rows
+ * @param data interface{}
+ * @return *entities.ReferrerStats
+ */
+func buildRoutesStats(data interface{}) *entities.RoutesStats {
+	var routes []dtos.DataStat
+	var totalViews, uniqueVisitors int64
+
+	switch rows := data.(type) {
+	case []repository.GetRoutesSummaryByDayRow:
+		routes = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			routes = append(routes, dtos.DataStat{
+				Name:     r.Pathname,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	case []repository.GetRoutesSummaryForLast24HoursRow:
+		routes = make([]dtos.DataStat, 0, len(rows))
+		for _, r := range rows {
+			routes = append(routes, dtos.DataStat{
+				Name:     r.Pathname,
+				Views:    r.Views,
+				Visitors: r.UniqueVisitors,
+			})
+
+			totalViews += r.Views
+			uniqueVisitors += r.UniqueVisitors
+		}
+	}
+
+	return &entities.RoutesStats{
+		TotalViews:          totalViews,
+		TotalUniqueVisitors: uniqueVisitors,
+		Routes:              routes,
+	}
+
 }
 
 /**

@@ -27,6 +27,8 @@ type Querier interface {
 	GetOSSummaryForLast24Hours(ctx context.Context) ([]GetOSSummaryForLast24HoursRow, error)
 	GetReferrerSummaryByDay(ctx context.Context, days int32) ([]GetReferrerSummaryByDayRow, error)
 	GetReferrerSummaryForLast24Hours(ctx context.Context) ([]GetReferrerSummaryForLast24HoursRow, error)
+	GetRoutesSummaryByDay(ctx context.Context, days int32) ([]GetRoutesSummaryByDayRow, error)
+	GetRoutesSummaryForLast24Hours(ctx context.Context) ([]GetRoutesSummaryForLast24HoursRow, error)
 	GetSubcategories(ctx context.Context) ([]string, error)
 	GetTotalCheasheetsCount(ctx context.Context) (int64, error)
 	GetTotalImageSize(ctx context.Context) (GetTotalImageSizeRow, error)

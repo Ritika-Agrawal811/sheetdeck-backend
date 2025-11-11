@@ -175,6 +175,27 @@ WHERE browser != 'Headless Chrome'
   AND referrer IS NOT NULL
 GROUP BY referrer;
 
+-- name: GetRoutesSummaryByDay :many
+SELECT 
+   DISTINCT(pathname), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => sqlc.arg(days)::int))::date
+  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
+GROUP BY pathname;
+
+-- name: GetRoutesSummaryForLast24Hours :many
+SELECT 
+   DISTINCT(pathname), 
+   COALESCE(COUNT(viewed_at), 0)::bigint AS views,
+   COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
+FROM pageviews 
+WHERE browser != 'Headless Chrome'
+ AND viewed_at >= NOW() - INTERVAL '23 hours'
+GROUP BY pathname;
+
 
 
 
