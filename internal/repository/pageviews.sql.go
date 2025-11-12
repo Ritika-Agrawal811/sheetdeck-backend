@@ -17,7 +17,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
 GROUP BY browser
@@ -56,7 +56,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
   AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY browser
 ORDER BY views DESC
@@ -94,7 +94,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
 GROUP BY country
@@ -133,7 +133,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
  AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY country
 ORDER BY views DESC
@@ -181,7 +181,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
   ON DATE_TRUNC('day', p.viewed_at)::date = d
-  AND p.browser != 'Headless Chrome'
+  AND p.browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
 GROUP BY d
 ORDER BY d
 `
@@ -236,7 +236,7 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
   ON DATE_TRUNC('hour', p.viewed_at)::timestamp = h
-  AND p.browser != 'Headless Chrome'
+  AND p.browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
 GROUP BY h
 ORDER BY h
 `
@@ -287,7 +287,7 @@ FROM generate_series(
 ) AS d
 LEFT JOIN pageviews p
     ON DATE_TRUNC('day', p.viewed_at)::date = d
-    AND p.browser != 'Headless Chrome'
+    AND p.browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
 GROUP BY d
 ORDER BY d
 `
@@ -330,7 +330,7 @@ FROM generate_series(
 ) AS h
 LEFT JOIN pageviews p
     ON date_trunc('hour', p.viewed_at) = h
-    AND p.browser != 'Headless Chrome'
+    AND p.browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
 GROUP BY h
 ORDER BY h
 `
@@ -382,7 +382,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND os IS NOT NULL
@@ -437,7 +437,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
   AND viewed_at >= NOW() - INTERVAL '23 hours'
   AND os IS NOT NULL
 GROUP BY os_group
@@ -476,7 +476,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
   AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
   AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
   AND referrer IS NOT NULL
@@ -516,7 +516,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
  AND viewed_at >= NOW() - INTERVAL '23 hours'
  AND referrer IS NOT NULL
 GROUP BY referrer
@@ -555,7 +555,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
  AND DATE_TRUNC('day', viewed_at)::date >= (NOW() - make_interval(days => $1::int))::date
  AND DATE_TRUNC('day', viewed_at)::date <= NOW()::date
 GROUP BY pathname
@@ -594,7 +594,7 @@ SELECT
    COALESCE(COUNT(viewed_at), 0)::bigint AS views,
    COALESCE(COUNT(DISTINCT hashed_ip), 0)::bigint AS unique_visitors
 FROM pageviews 
-WHERE browser != 'Headless Chrome'
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
  AND viewed_at >= NOW() - INTERVAL '23 hours'
 GROUP BY pathname
 ORDER BY views DESC
@@ -629,6 +629,7 @@ func (q *Queries) GetRoutesSummaryForLast24Hours(ctx context.Context) ([]GetRout
 const getTotalViewsAndVisitors = `-- name: GetTotalViewsAndVisitors :one
 SELECT COUNT(id) as total_views, COUNT(DISTINCT hashed_ip) as total_visitors
 FROM pageviews
+WHERE browser NOT IN ('Headless Chrome', 'Google-Read-Aloud')
 `
 
 type GetTotalViewsAndVisitorsRow struct {
