@@ -126,7 +126,7 @@ func (q *Queries) GetCategoryDetails(ctx context.Context) ([]GetCategoryDetailsR
 }
 
 const getCheatsheetByID = `-- name: GetCheatsheetByID :one
-SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
+SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at, image_size
 FROM cheatsheets
 WHERE id = $1
 `
@@ -140,6 +140,7 @@ type GetCheatsheetByIDRow struct {
 	ImageUrl    pgtype.Text        `json:"image_url"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ImageSize   pgtype.Int8        `json:"image_size"`
 }
 
 func (q *Queries) GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetCheatsheetByIDRow, error) {
@@ -154,12 +155,13 @@ func (q *Queries) GetCheatsheetByID(ctx context.Context, id pgtype.UUID) (GetChe
 		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageSize,
 	)
 	return i, err
 }
 
 const getCheatsheetBySlug = `-- name: GetCheatsheetBySlug :one
-SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at
+SELECT id, slug, title, category, subcategory, image_url, created_at, updated_at, image_size
 FROM cheatsheets
 WHERE slug = $1
 `
@@ -173,6 +175,7 @@ type GetCheatsheetBySlugRow struct {
 	ImageUrl    pgtype.Text        `json:"image_url"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ImageSize   pgtype.Int8        `json:"image_size"`
 }
 
 func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (GetCheatsheetBySlugRow, error) {
@@ -187,6 +190,7 @@ func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (GetChea
 		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageSize,
 	)
 	return i, err
 }
@@ -246,11 +250,38 @@ func (q *Queries) GetTotalImageSize(ctx context.Context) (GetTotalImageSizeRow, 
 }
 
 const listCheatsheets = `-- name: ListCheatsheets :many
-SELECT id, slug, title, category::varchar, subcategory::varchar, image_url, created_at, updated_at
-FROM cheatsheets
-WHERE ($3::category IS NULL OR category = $3)
-  AND ($4::subcategory IS NULL OR subcategory = $4)
-ORDER BY created_at DESC
+SELECT 
+    c.id, 
+    c.slug, 
+    c.title, 
+    c.category::varchar AS category, 
+    c.subcategory::varchar AS subcategory, 
+    c.image_url, 
+    c.image_size, 
+    c.created_at, 
+    c.updated_at,
+    COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'download') AS downloads,
+    COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'click') AS views
+FROM cheatsheets c
+LEFT JOIN events e ON e.cheatsheet_id = c.id
+WHERE ($3::category IS NULL OR c.category = $3)
+  AND ($4::subcategory IS NULL OR c.subcategory = $4)
+GROUP BY c.id
+ORDER BY 
+  CASE $5::text
+    WHEN 'recent' THEN c.created_at
+  END DESC,
+  CASE $5::text
+    WHEN 'oldest' THEN c.created_at
+  END ASC,
+  CASE $5::text
+    WHEN 'most_downloaded' THEN COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'download')
+    WHEN 'most_viewed' THEN COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'click')
+  END DESC,
+  CASE $5::text
+    WHEN 'least_downloaded' THEN COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'download')
+    WHEN 'least_viewed' THEN COUNT(e.hashed_ip) FILTER (WHERE e.event_type = 'click')
+  END ASC
 LIMIT $1 OFFSET $2
 `
 
@@ -259,6 +290,7 @@ type ListCheatsheetsParams struct {
 	Offset      int32           `json:"offset"`
 	Category    NullCategory    `json:"category"`
 	Subcategory NullSubcategory `json:"subcategory"`
+	SortBy      string          `json:"sort_by"`
 }
 
 type ListCheatsheetsRow struct {
@@ -268,8 +300,11 @@ type ListCheatsheetsRow struct {
 	Category    string             `json:"category"`
 	Subcategory string             `json:"subcategory"`
 	ImageUrl    pgtype.Text        `json:"image_url"`
+	ImageSize   pgtype.Int8        `json:"image_size"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Downloads   int64              `json:"downloads"`
+	Views       int64              `json:"views"`
 }
 
 func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams) ([]ListCheatsheetsRow, error) {
@@ -278,6 +313,7 @@ func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams
 		arg.Offset,
 		arg.Category,
 		arg.Subcategory,
+		arg.SortBy,
 	)
 	if err != nil {
 		return nil, err
@@ -293,8 +329,11 @@ func (q *Queries) ListCheatsheets(ctx context.Context, arg ListCheatsheetsParams
 			&i.Category,
 			&i.Subcategory,
 			&i.ImageUrl,
+			&i.ImageSize,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Downloads,
+			&i.Views,
 		); err != nil {
 			return nil, err
 		}
