@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/entities"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/cheatsheets"
 	"github.com/gin-gonic/gin"
 )
@@ -219,12 +220,18 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	// add query params for category, subcategory etc.
 	category := c.Query("category")
 	subcategory := c.Query("subcategory")
+	sortBy := c.Query("sort")
+
+	if sortBy != "" && !entities.Filters[sortBy] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort parameter"})
+		return
+	}
 
 	// Create a context with 45 seconds timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
-	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory)
+	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory, sortBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch cheatsheets: %v", err.Error())})
 		return

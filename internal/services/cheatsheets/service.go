@@ -19,7 +19,7 @@ type CheatsheetsService interface {
 	BulkCreateCheatsheets(ctx context.Context, details []dtos.Cheatsheet, files []*multipart.FileHeader) []string
 	GetCheatsheetByID(ctx context.Context, id string) (*repository.GetCheatsheetByIDRow, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.GetCheatsheetBySlugRow, error)
-	GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.ListCheatsheetsRow, error)
+	GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string) ([]repository.ListCheatsheetsRow, error)
 	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest, image multipart.File) error
 }
 
@@ -161,13 +161,14 @@ func (s *cheatsheetsService) GetCheatsheetBySlug(ctx context.Context, slug strin
  * @param subcategory string
  * @return []repository.Cheatsheet, error
  */
-func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category string, subcategory string) ([]repository.ListCheatsheetsRow, error) {
+func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string) ([]repository.ListCheatsheetsRow, error) {
 
 	details := repository.ListCheatsheetsParams{
 		Category:    repository.NullCategory{Category: repository.Category(category), Valid: category != ""},
 		Subcategory: repository.NullSubcategory{Subcategory: repository.Subcategory(subcategory), Valid: subcategory != ""},
 		Limit:       100,
 		Offset:      0,
+		SortBy:      sortBy,
 	}
 
 	cheatsheets, err := s.repo.ListCheatsheets(ctx, details)
