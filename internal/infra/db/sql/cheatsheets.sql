@@ -83,3 +83,12 @@ SELECT
   pg_size_pretty(COALESCE(SUM(image_size), 0)) as total_size_pretty
 FROM cheatsheets;
 
+-- name: GetLargestCheatsheets :many
+SELECT
+  title,
+  category::varchar,
+  pg_size_pretty(image_size) AS size
+FROM cheatsheets
+ORDER BY image_size DESC
+LIMIT 2;
+

@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getTotalClicksAndDownloads = `-- name: GetTotalClicksAndDownloads :one
+SELECT
+COALESCE(COUNT(hashed_ip) FILTER (WHERE event_type = 'click'), 0)::bigint AS total_clicks,
+COALESCE(COUNT(hashed_ip) FILTER (WHERE event_type = 'download'), 0)::bigint AS total_downloads
+FROM events
+`
+
+type GetTotalClicksAndDownloadsRow struct {
+	TotalClicks    int64 `json:"total_clicks"`
+	TotalDownloads int64 `json:"total_downloads"`
+}
+
+func (q *Queries) GetTotalClicksAndDownloads(ctx context.Context) (GetTotalClicksAndDownloadsRow, error) {
+	row := q.db.QueryRow(ctx, getTotalClicksAndDownloads)
+	var i GetTotalClicksAndDownloadsRow
+	err := row.Scan(&i.TotalClicks, &i.TotalDownloads)
+	return i, err
+}
+
 const storeEvent = `-- name: StoreEvent :exec
 INSERT INTO events (cheatsheet_id, event_type, pathname, hashed_ip)
 VALUES ($1, $2, $3, $4)
