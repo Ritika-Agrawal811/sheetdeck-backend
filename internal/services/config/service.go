@@ -59,16 +59,23 @@ func (s *configService) GetConfig(ctx context.Context) (*dtos.ConfigResponse, er
 		return &dtos.ConfigResponse{}, fmt.Errorf("failed to get all subcategories")
 	}
 
-	// Get analytics data
-	analytics, err := s.repo.GetTotalViewsAndVisitors(ctx)
+	// Get traffic data
+	traffic, err := s.repo.GetTotalViewsAndVisitors(ctx)
 	if err != nil {
 		return &dtos.ConfigResponse{}, fmt.Errorf("failed to fetch total view and visitors")
 	}
 
+	analytics, err := s.repo.GetTotalClicksAndDownloads(ctx)
+	if err != nil {
+		return &dtos.ConfigResponse{}, fmt.Errorf("failed to fetch total clicks and downloads")
+	}
+
 	stats := dtos.GlobalStats{
 		TotalCheatsheets:    totalCount,
-		TotalViews:          analytics.TotalViews,
-		TotalUniqueVisitors: analytics.TotalVisitors,
+		TotalViews:          traffic.TotalViews,
+		TotalUniqueVisitors: traffic.TotalVisitors,
+		TotalClicks:         analytics.TotalClicks,
+		TotalDownloads:      analytics.TotalDownloads,
 	}
 
 	config := &dtos.ConfigResponse{
@@ -146,6 +153,11 @@ func (s *configService) GetUsage(ctx context.Context) (*dtos.UsageResponse, erro
 		databaseUsagePercent = 100
 	}
 
+	largestTables, err := s.getLargestTables(ctx)
+	if err != nil {
+		return &dtos.UsageResponse{}, fmt.Errorf("failed to get largest tables usage info")
+	}
+
 	/*  Get storage usage info */
 	storageUsage, err := s.repo.GetTotalImageSize(ctx)
 	if err != nil {
@@ -162,20 +174,27 @@ func (s *configService) GetUsage(ctx context.Context) (*dtos.UsageResponse, erro
 		storageUsagePercent = 100
 	}
 
+	largestFiles, err := s.getLargestFiles(ctx)
+	if err != nil {
+		return &dtos.UsageResponse{}, fmt.Errorf("failed to get largest tables usage info")
+	}
+
 	response := &dtos.UsageResponse{
-		Database: dtos.ResourceUsage{
-			SizeBytes:    databaseUsage.SizeBytes,
-			SizePretty:   databaseUsage.SizePretty,
-			LimitBytes:   databaseDetails.LimitBytes,
-			LimitPretty:  databaseDetails.LimitPretty,
-			UsagePercent: math.Round(databaseUsagePercent),
+		Database: dtos.DatabaseUsage{
+			SizeBytes:     databaseUsage.SizeBytes,
+			SizePretty:    databaseUsage.SizePretty,
+			LimitBytes:    databaseDetails.LimitBytes,
+			LimitPretty:   databaseDetails.LimitPretty,
+			UsagePercent:  math.Round(databaseUsagePercent),
+			LargestTables: largestTables,
 		},
-		Storage: dtos.ResourceUsage{
+		Storage: dtos.StorageUsage{
 			SizeBytes:    storageUsage.TotalSize,
 			SizePretty:   storageUsage.TotalSizePretty,
 			LimitBytes:   storageDetails.LimitBytes,
 			LimitPretty:  storageDetails.LimitPretty,
 			UsagePercent: math.Round(storageUsagePercent),
+			Files:        largestFiles,
 		},
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -193,7 +212,7 @@ func (s *configService) getDatabaseSize(ctx context.Context) (*entities.Database
 		SELECT 
 			sum(pg_database_size(pg_database.datname))::bigint as size_bytes,
 			pg_size_pretty(sum(pg_database_size(pg_database.datname))) as size_pretty
-		FROM pg_database
+		FROM pg_database;
 	`
 
 	var result entities.DatabaseSize
@@ -202,4 +221,67 @@ func (s *configService) getDatabaseSize(ctx context.Context) (*entities.Database
 		return nil, err
 	}
 	return &result, nil
+}
+
+/**
+ * Retrieve 4 largest tables by size
+ * @param ctx context.Context
+ * @return []dtos.TableData, error
+ */
+func (s *configService) getLargestTables(ctx context.Context) ([]dtos.TableData, error) {
+	query := `
+		SELECT
+			schemaname AS schema_name,
+			tablename AS table_name,
+			pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+		FROM pg_tables
+		WHERE schemaname = 'public'
+		ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+		LIMIT 4;
+	`
+
+	rows, err := s.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []dtos.TableData
+	for rows.Next() {
+		var table dtos.TableData
+		err := rows.Scan(&table.Schema, &table.Name, &table.Size)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+/**
+ * Retrieve 4 largest files by size
+ * @param ctx context.Context
+ * @return []dtos.FileData, error
+ */
+func (s *configService) getLargestFiles(ctx context.Context) ([]dtos.FileData, error) {
+	data, err := s.repo.GetLargestCheatsheets(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []dtos.FileData
+	for _, row := range data {
+		result = append(result, dtos.FileData{
+			Title:    row.Title,
+			Category: row.Category,
+			Size:     row.Size,
+		})
+	}
+
+	return result, nil
 }

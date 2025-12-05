@@ -195,6 +195,42 @@ func (q *Queries) GetCheatsheetBySlug(ctx context.Context, slug string) (GetChea
 	return i, err
 }
 
+const getLargestCheatsheets = `-- name: GetLargestCheatsheets :many
+SELECT
+  title,
+  category::varchar,
+  pg_size_pretty(image_size) AS size
+FROM cheatsheets
+ORDER BY image_size DESC
+LIMIT 2
+`
+
+type GetLargestCheatsheetsRow struct {
+	Title    string `json:"title"`
+	Category string `json:"category"`
+	Size     string `json:"size"`
+}
+
+func (q *Queries) GetLargestCheatsheets(ctx context.Context) ([]GetLargestCheatsheetsRow, error) {
+	rows, err := q.db.Query(ctx, getLargestCheatsheets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetLargestCheatsheetsRow{}
+	for rows.Next() {
+		var i GetLargestCheatsheetsRow
+		if err := rows.Scan(&i.Title, &i.Category, &i.Size); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSubcategories = `-- name: GetSubcategories :many
 SELECT unnest(enum_range(NULL::subcategory))::varchar as subcategories
 `
