@@ -6,7 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"time"
+
+	"github.com/pariz/gountries"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/entities"
@@ -93,29 +96,40 @@ func (s *analyticsService) GetCountriesStats(ctx context.Context, period string)
  * @return *entities.CountriesStats
  */
 func buildCountriesStats(data interface{}) *entities.CountriesStats {
-	var countries []dtos.DataStat
+	var countries []dtos.CountryStat
 	var totalViews, uniqueVisitors int64
 
 	switch rows := data.(type) {
 	case []repository.GetCountriesSummaryForLast24HoursRow:
-		countries = make([]dtos.DataStat, 0, len(rows))
+
+		countries = make([]dtos.CountryStat, 0, len(rows))
+
 		for _, r := range rows {
-			countries = append(countries, dtos.DataStat{
-				Name:     r.Country.String,
-				Views:    r.Views,
-				Visitors: r.UniqueVisitors,
+			codes := getCountryCodes(r.Country.String)
+			countries = append(countries, dtos.CountryStat{
+				Name:        r.Country.String,
+				Views:       r.Views,
+				Visitors:    r.UniqueVisitors,
+				Code:        codes.Alpha2,
+				NumericCode: codes.NumericCode,
 			})
 
 			totalViews += r.Views
 			uniqueVisitors += r.UniqueVisitors
 		}
+
 	case []repository.GetCountriesSummaryByDayRow:
-		countries = make([]dtos.DataStat, 0, len(rows))
+
+		countries = make([]dtos.CountryStat, 0, len(rows))
+
 		for _, r := range rows {
-			countries = append(countries, dtos.DataStat{
-				Name:     r.Country.String,
-				Views:    r.Views,
-				Visitors: r.UniqueVisitors,
+			codes := getCountryCodes(r.Country.String)
+			countries = append(countries, dtos.CountryStat{
+				Name:        r.Country.String,
+				Views:       r.Views,
+				Visitors:    r.UniqueVisitors,
+				Code:        codes.Alpha2,
+				NumericCode: codes.NumericCode,
 			})
 
 			totalViews += r.Views
@@ -803,4 +817,30 @@ func getStartAndEndDatesForPeriod(days int64) (time.Time, time.Time) {
 	}
 
 	return startDate, endDate
+}
+
+/**
+ * Get country codes (alpha-2 and numeric) from country name
+ * @param name string
+ * @return *entities.CountryCodes, error
+ */
+func getCountryCodes(name string) *entities.CountryCodes {
+	query := gountries.New()
+
+	// Try different search methods
+	name = strings.TrimSpace(name)
+
+	// Try common name first
+	country, err := query.FindCountryByName(name)
+	if err != nil {
+		return &entities.CountryCodes{
+			Alpha2:      "",
+			NumericCode: "",
+		}
+	}
+
+	return &entities.CountryCodes{
+		Alpha2:      country.Codes.Alpha2,
+		NumericCode: country.Codes.CCN3,
+	}
 }

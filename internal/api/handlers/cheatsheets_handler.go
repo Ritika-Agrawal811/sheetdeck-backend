@@ -221,6 +221,7 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	category := c.Query("category")
 	subcategory := c.Query("subcategory")
 	sortBy := c.Query("sort")
+	limit := c.Query("limit")
 
 	if sortBy != "" && !entities.Filters[sortBy] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort parameter"})
@@ -231,7 +232,7 @@ func (h *CheatsheetsHandler) GetAllCheatsheets(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
-	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory, sortBy)
+	cheatsheets, err := h.service.GetAllCheatsheets(ctx, category, subcategory, sortBy, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch cheatsheets: %v", err.Error())})
 		return

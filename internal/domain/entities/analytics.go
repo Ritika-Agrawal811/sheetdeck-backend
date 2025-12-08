@@ -56,7 +56,12 @@ type RoutesStats struct {
 }
 
 type CountriesStats struct {
-	TotalViews          int64           `json:"total_views"`
-	TotalUniqueVisitors int64           `json:"total_unique_visitors"`
-	Countries           []dtos.DataStat `json:"countries"`
+	TotalViews          int64              `json:"total_views"`
+	TotalUniqueVisitors int64              `json:"total_unique_visitors"`
+	Countries           []dtos.CountryStat `json:"countries"`
+}
+
+type CountryCodes struct {
+	Alpha2      string `json:"alpha_2"`
+	NumericCode string `json:"numeric_code"`
 }
