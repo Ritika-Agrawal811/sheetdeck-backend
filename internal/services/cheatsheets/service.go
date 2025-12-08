@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"mime/multipart"
+	"strconv"
 	"strings"
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
@@ -19,7 +20,7 @@ type CheatsheetsService interface {
 	BulkCreateCheatsheets(ctx context.Context, details []dtos.Cheatsheet, files []*multipart.FileHeader) []string
 	GetCheatsheetByID(ctx context.Context, id string) (*repository.GetCheatsheetByIDRow, error)
 	GetCheatsheetBySlug(ctx context.Context, slug string) (*repository.GetCheatsheetBySlugRow, error)
-	GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string) ([]repository.ListCheatsheetsRow, error)
+	GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string, limit string) ([]repository.ListCheatsheetsRow, error)
 	UpdateCheatsheet(ctx context.Context, id string, details dtos.UpdateCheatsheetRequest, image multipart.File) error
 }
 
@@ -161,14 +162,27 @@ func (s *cheatsheetsService) GetCheatsheetBySlug(ctx context.Context, slug strin
  * @param subcategory string
  * @return []repository.Cheatsheet, error
  */
-func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string) ([]repository.ListCheatsheetsRow, error) {
+func (s *cheatsheetsService) GetAllCheatsheets(ctx context.Context, category string, subcategory string, sortBy string, limit string) ([]repository.ListCheatsheetsRow, error) {
+	defaultLimit := 15
+	defaultSortBy := "recent"
+
+	if limit != "" {
+		parsedLimit, err := strconv.Atoi(limit)
+		if err == nil && parsedLimit > 0 {
+			defaultLimit = parsedLimit
+		}
+	}
+
+	if sortBy != "" && entities.Filters[sortBy] {
+		defaultSortBy = sortBy
+	}
 
 	details := repository.ListCheatsheetsParams{
 		Category:    repository.NullCategory{Category: repository.Category(category), Valid: category != ""},
 		Subcategory: repository.NullSubcategory{Subcategory: repository.Subcategory(subcategory), Valid: subcategory != ""},
-		Limit:       100,
+		Limit:       int32(defaultLimit),
 		Offset:      0,
-		SortBy:      sortBy,
+		SortBy:      defaultSortBy,
 	}
 
 	cheatsheets, err := s.repo.ListCheatsheets(ctx, details)
