@@ -14,6 +14,10 @@ type ServicesContainer struct {
 	ConfigService      config.ConfigService
 }
 
+/**
+ * Creates a common services struct for all the services
+ * @param repo *repository.Queries
+ */
 func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
 	cheatsheetsService := cheatsheets.NewCheatsheetsService(repo)
 	analyticsService := analytics.NewAnalyticsService(repo)
@@ -26,6 +30,10 @@ func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
 	}
 }
 
+/**
+ * Sets up routes for all api groups - cheatsheets, config, analytics
+ * @param apiGroup *gin.RouterGroup, services *ServicesContainer
+ */
 func SetupRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	setupCheatsheetsRoutes(apiGroup, services)
 	setupAnalyticsRoutes(apiGroup, services)
