@@ -30,8 +30,13 @@ type Config struct {
 	MaxHeaderBytes int
 }
 
+/**
+ * Prepares the configuration details for the server
+ * @return *Config the configuration struct
+ */
 func loadConfig() (*Config, error) {
-	// Load .env first
+
+	/* Loads the .env file */
 	if err := godotenv.Load(); err != nil {
 		log.Warn().Msg("No .env file found (this may be fine in PROD)")
 	}
@@ -59,34 +64,42 @@ func loadConfig() (*Config, error) {
 /**
  * Initialize Gin HTTP server with middleware and routes
  * @param *Config Configuration settings
- * @return *gin.Engine Configured Gin engine
+ * @return *gin.Engine Configured Gin engine, *gin.RouterGroup the gin router group for APIs
  */
 func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
-	// Set Gin to release mode in production, which disables debug output and improves performance.
+
+	/**
+	 * Sets Gin to release mode in production,
+	 * which disables debug output and improves performance.
+	 */
 	if cfg.Environment == "PROD" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New()
 
-	// Logger + Recovery
+	/* Sets up Logger middleware for the router */
 	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		// Skip noisy endpoints
+
+		/* Skip noisy endpoints */
 		if param.Path == "/healthz" {
 			return ""
 		}
+
 		log.Info().
 			Str("method", param.Method).
 			Str("path", param.Path).
 			Int("status", param.StatusCode).
 			Str("latency", param.Latency.String()).
 			Msg("request")
+
 		return ""
 	}))
 
+	/* Sets up Recovery middleware for the router */
 	r.Use(gin.Recovery())
 
-	// Security headers middleware
+	/* Adds security headers for the router */
 	r.Use(secure.New(secure.Config{
 		SSLRedirect:           cfg.SSLRedirect,
 		SSLProxyHeaders:       map[string]string{"X-Forwarded-Proto": "https"},
@@ -98,7 +111,7 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 	}))
 
-	// CORS config
+	/* Handles CORS for the requests */
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.AllowedOrigins,
 		AllowMethods: []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
@@ -106,14 +119,15 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 		MaxAge:       12 * time.Hour,
 	}))
 
-	// Health endpoint
+	/* Creates /heatlhz endpoint to check health status of the server */
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
 
-	// Create API group with middleware
+	/* Create API group with middlewares for checking valid requests and rate limiting */
 	apiGroup := r.Group("/api")
 	apiGroup.Use(middlewares.ValidateRequestMiddleware(cfg.AllowedOrigins))
+
 	rateLimiter := middlewares.NewRateLimiterStore(150, time.Minute)
 	apiGroup.Use(rateLimiter.RateLimitMiddleware())
 
@@ -123,21 +137,21 @@ func initGin(cfg *Config) (*gin.Engine, *gin.RouterGroup) {
 func main() {
 	log.Info().Msg("Starting the backend server...")
 
-	// Load configuration with explicit error handling
+	/* Loads configuration */
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load configuration")
 		os.Exit(1)
 	}
 
-	// Channel to listen for interrupt or terminate signals from the OS.
+	/* Channel to listen for interrupt or terminate signals from the OS. */
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Initialize Gin engine
+	/* Initializes Gin engine */
 	r, apiGroup := initGin(cfg)
 
-	// Create HTTP server with timeouts and max header bytes
+	/* Creates HTTP server with timeouts and max header bytes */
 	srv := &http.Server{
 		Addr:           ":" + cfg.Port,
 		Handler:        r,
@@ -146,32 +160,33 @@ func main() {
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
-	// Initialize Postgres with explicit error handling
+	/* Initializes Postgres */
 	pgClient := db.InitPostgresClient()
 	if pgClient == nil {
 		log.Info().Msg("Failed to initialize Postgres client")
 		os.Exit(1)
 	}
 
+	/* Setup routes, repo and services */
 	repo := repository.New(pgClient.Client)
-	services := routes.NewServicesContainer(repo)
+	db := db.GetPostgresClient()
+	services := routes.NewServicesContainer(repo, db)
 
-	// Setup routes with services
 	routes.SetupRoutes(apiGroup, services)
 
-	// Channel for server errors
+	/* Starts the server in a goroutine and stores the errors in a channel */
 	serverErr := make(chan error, 1)
 
-	// Start server in goroutine
 	go func() {
 		log.Info().Msgf("Server is running on port %s in %s mode", cfg.Port, cfg.Environment)
 		log.Info().Msg("Press Ctrl+C to stop")
+
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErr <- err
 		}
 	}()
 
-	// Wait for interrupt signal or server error
+	/* Handles interrupt signal or server error */
 	select {
 	case sig := <-sigChan:
 		log.Info().Msgf("Received signal: %s. Shutting down...", sig)
@@ -179,14 +194,12 @@ func main() {
 		log.Error().Err(err).Msg("Server encountered an error")
 	}
 
-	// Create context with timeout for graceful shutdown
+	/* Performs graceful shutdown */
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Close Postgres connection pool
 	db.Close()
 
-	// Attempt graceful shutdown
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("Server forced to shutdown")
 		os.Exit(1)

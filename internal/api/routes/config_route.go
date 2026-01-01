@@ -5,6 +5,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/**
+ * Handles all the config routes
+ * @param apiGroup *gin.RouterGroup, services *ServivesContainer
+ */
 func setupConfigRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	configHandler := handlers.NewConfigHandler(services.ConfigService)
 	configGroup := apiGroup.Group("/config")

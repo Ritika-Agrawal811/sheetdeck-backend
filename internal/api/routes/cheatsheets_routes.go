@@ -5,6 +5,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/**
+ * Handles all the cheatsheets routes
+ * @param apiGroup *gin.RouterGroup, services *ServivesContainer
+ */
 func setupCheatsheetsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	cheatsheetsHandler := handlers.NewCheatsheetsHandler(services.CheatsheetsService)
 	cheatsheetsGroup := apiGroup.Group("/cheatsheets")

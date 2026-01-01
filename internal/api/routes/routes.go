@@ -6,6 +6,7 @@ import (
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/cheatsheets"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/config"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ServicesContainer struct {
@@ -14,10 +15,14 @@ type ServicesContainer struct {
 	ConfigService      config.ConfigService
 }
 
-func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
+/**
+ * Creates a common services struct for all the services
+ * @param repo *repository.Queries
+ */
+func NewServicesContainer(repo *repository.Queries, db *pgxpool.Pool) *ServicesContainer {
 	cheatsheetsService := cheatsheets.NewCheatsheetsService(repo)
 	analyticsService := analytics.NewAnalyticsService(repo)
-	configService := config.NewConfigService(repo)
+	configService := config.NewConfigService(repo, db)
 
 	return &ServicesContainer{
 		CheatsheetsService: cheatsheetsService,
@@ -26,6 +31,10 @@ func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
 	}
 }
 
+/**
+ * Sets up routes for all api groups - cheatsheets, config, analytics
+ * @param apiGroup *gin.RouterGroup, services *ServicesContainer
+ */
 func SetupRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	setupCheatsheetsRoutes(apiGroup, services)
 	setupAnalyticsRoutes(apiGroup, services)

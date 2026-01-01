@@ -15,6 +15,9 @@ type IpInfoSdk struct {
 	apiKey   string
 }
 
+/**
+ * Creates an sdk instance for ipinfo.io
+ */
 func NewGeoSdk() *IpInfoSdk {
 	basePath := utils.GetEnv("IP_INFO_BASE_PATH", "")
 	apiKey := utils.GetEnv("IP_INFO_TOKEN", "")
@@ -30,6 +33,11 @@ func NewGeoSdk() *IpInfoSdk {
 	}
 }
 
+/**
+ * Fetches the Country name for the IP Address
+ * @param string - IP Address
+ * @returns string - country name
+ */
 func (s *IpInfoSdk) FetchCountry(ip string) (string, error) {
 	if s.basePath == "" || s.apiKey == "" {
 		return "", fmt.Errorf("IP Info SDK not configured")

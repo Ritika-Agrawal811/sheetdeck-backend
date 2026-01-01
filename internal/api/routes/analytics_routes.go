@@ -5,6 +5,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/**
+ * Handles all the analytics routes
+ * @param apiGroup *gin.RouterGroup, services *ServivesContainer
+ */
 func setupAnalyticsRoutes(apiGroup *gin.RouterGroup, services *ServicesContainer) {
 	analyticsHandler := handlers.NewAnalyticsHandler(services.AnalyticsService)
 	analyticsGroup := apiGroup.Group("/analytics")
