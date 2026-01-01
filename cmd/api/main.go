@@ -169,7 +169,8 @@ func main() {
 
 	/* Setup routes, repo and services */
 	repo := repository.New(pgClient.Client)
-	services := routes.NewServicesContainer(repo)
+	db := db.GetPostgresClient()
+	services := routes.NewServicesContainer(repo, db)
 
 	routes.SetupRoutes(apiGroup, services)
 

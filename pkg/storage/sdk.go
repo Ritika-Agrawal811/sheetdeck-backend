@@ -14,7 +14,7 @@ type StorageSdk struct {
 }
 
 /**
- * Creates an sdk instance for supabase storage
+ * Creates an sdk instance for Supabase Storage
  */
 func NewStorageSdk() (*StorageSdk, error) {
 	apiKey := utils.GetEnv("SUPABASE_API_KEY", "")

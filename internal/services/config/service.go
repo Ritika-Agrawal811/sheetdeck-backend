@@ -8,9 +8,7 @@ import (
 
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/dtos"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/domain/entities"
-	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/infra/db"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ConfigService interface {
@@ -19,20 +17,20 @@ type ConfigService interface {
 }
 
 type configService struct {
-	repo *repository.Queries
-	db   *pgxpool.Pool
+	repo repository.Querier
+	db   repository.DBTX
 }
 
-func NewConfigService(repo *repository.Queries) ConfigService {
+func NewConfigService(repo repository.Querier, db repository.DBTX) ConfigService {
 
 	return &configService{
 		repo: repo,
-		db:   db.GetPostgresClient(),
+		db:   db,
 	}
 }
 
 /**
- * Get Config - categories, subcategories, stats, etc.
+ * Fetches Config - categories, subcategories, stats, etc.
  * @param ctx context.Context
  * @return *dtos.ConfigResponse, error
  */
@@ -161,7 +159,7 @@ func (s *configService) GetUsage(ctx context.Context) (*dtos.UsageResponse, erro
 	/*  Get storage usage info */
 	storageUsage, err := s.repo.GetTotalImageSize(ctx)
 	if err != nil {
-		return &dtos.UsageResponse{}, fmt.Errorf("failed to get storage usage info: %v", err)
+		return &dtos.UsageResponse{}, fmt.Errorf("failed to get storage usage info")
 	}
 
 	storageDetails, ok := entities.ResourceLimits["storage"]

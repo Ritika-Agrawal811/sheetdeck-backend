@@ -6,6 +6,7 @@ import (
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/cheatsheets"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/config"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ServicesContainer struct {
@@ -18,10 +19,10 @@ type ServicesContainer struct {
  * Creates a common services struct for all the services
  * @param repo *repository.Queries
  */
-func NewServicesContainer(repo *repository.Queries) *ServicesContainer {
+func NewServicesContainer(repo *repository.Queries, db *pgxpool.Pool) *ServicesContainer {
 	cheatsheetsService := cheatsheets.NewCheatsheetsService(repo)
 	analyticsService := analytics.NewAnalyticsService(repo)
-	configService := config.NewConfigService(repo)
+	configService := config.NewConfigService(repo, db)
 
 	return &ServicesContainer{
 		CheatsheetsService: cheatsheetsService,
