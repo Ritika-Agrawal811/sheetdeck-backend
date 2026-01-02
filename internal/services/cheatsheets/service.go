@@ -3,7 +3,6 @@ package cheatsheets
 import (
 	"context"
 	"fmt"
-	"log"
 	"mime/multipart"
 	"strconv"
 	"strings"
@@ -25,16 +24,11 @@ type CheatsheetsService interface {
 }
 
 type cheatsheetsService struct {
-	repo       *repository.Queries
-	storageSdk *storage.StorageSdk
+	repo       repository.Querier
+	storageSdk storage.StorageService
 }
 
-func NewCheatsheetsService(repo *repository.Queries) CheatsheetsService {
-	storageSdk, err := storage.NewStorageSdk()
-	if err != nil {
-		log.Fatal("Warning: Storage SDK not configured:", err)
-	}
-
+func NewCheatsheetsService(repo repository.Querier, storageSdk storage.StorageService) CheatsheetsService {
 	return &cheatsheetsService{
 		repo:       repo,
 		storageSdk: storageSdk,
@@ -67,7 +61,7 @@ func (s *cheatsheetsService) CreateCheatsheet(ctx context.Context, details dtos.
 
 	imageUrl, err := s.uploadCheatsheetImage(image, filePath, "upload")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to upload the cheat sheet in storage: %w", err)
 	}
 
 	// Set the image URL
@@ -307,9 +301,11 @@ func (s *cheatsheetsService) createFilePathForUpdate(ctx context.Context, id str
 	if category == "" {
 		category = string(cheatsheetDetails.Category)
 	}
+
 	if subCategory == "" {
 		subCategory = string(cheatsheetDetails.Subcategory)
 	}
+
 	if slug == "" {
 		slug = cheatsheetDetails.Slug
 	}
