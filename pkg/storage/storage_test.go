@@ -1,78 +1,13 @@
 package storage
 
 import (
-	"bytes"
 	"fmt"
 	"mime/multipart"
 	"testing"
 
-	storage "github.com/supabase-community/storage-go"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/mocks"
+	supabase "github.com/supabase-community/storage-go"
 )
-
-/** Mock Implementation for Supabase Storage **/
-
-/**
- * mockStorageClient implements StorageClient interface
- * Each field is a function from the interface
- * This helps us to customize behavior per test case
- */
-type mockStorageClient struct {
-	uploadFunc    func(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error)
-	updateFunc    func(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error)
-	removeFunc    func(bucketId string, paths []string) ([]storage.FileUploadResponse, error)
-	getPublicFunc func(bucketId string, filePath string) storage.SignedUrlResponse
-}
-
-/* Mocks UploadFile */
-func (m *mockStorageClient) UploadFile(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error) {
-	if m.uploadFunc != nil {
-		return m.uploadFunc(bucketId, path, file)
-	}
-
-	return storage.FileUploadResponse{Key: path}, nil
-}
-
-/* Mocks UpdateFile */
-func (m *mockStorageClient) UpdateFile(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error) {
-	if m.updateFunc != nil {
-		return m.updateFunc(bucketId, path, file)
-	}
-	return storage.FileUploadResponse{Key: path}, nil
-}
-
-/* Mocks RemoveFile */
-func (m *mockStorageClient) RemoveFile(bucketId string, paths []string) ([]storage.FileUploadResponse, error) {
-	if m.removeFunc != nil {
-		return m.removeFunc(bucketId, paths)
-	}
-	return []storage.FileUploadResponse{{Key: paths[0]}}, nil
-}
-
-/* Mocks GetPublicUrl */
-func (m *mockStorageClient) GetPublicUrl(bucketId string, filePath string) storage.SignedUrlResponse {
-	if m.getPublicFunc != nil {
-		return m.getPublicFunc(bucketId, filePath)
-	}
-	return storage.SignedUrlResponse{
-		SignedURL: fmt.Sprintf("https://example.supabase.co/storage/v1/object/public/%s/%s", bucketId, filePath),
-	}
-}
-
-/** Mock Implementation for multipart.File **/
-
-type mockMultipartFile struct {
-	*bytes.Reader
-}
-
-func (m *mockMultipartFile) Close() error {
-	return nil
-}
-
-func createMockFile(content string) multipart.File {
-	return &mockMultipartFile{
-		Reader: bytes.NewReader([]byte(content)),
-	}
-}
 
 /** Tests for Supabase Storage SDK **/
 func TestNewStorageSdk(t *testing.T) {
@@ -200,8 +135,8 @@ func TestUploadFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			/* Creates mock client */
-			mockClient := &mockStorageClient{
-				uploadFunc: func(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error) {
+			mockClient := &mocks.MockStorageClient{
+				UploadFunc: func(bucketId string, path string, file multipart.File) (supabase.FileUploadResponse, error) {
 					/* Verify correct bucket is used */
 					if bucketId != tt.bucketId {
 						t.Errorf("Expected bucketId %q, but got %q", tt.bucketId, bucketId)
@@ -213,10 +148,10 @@ func TestUploadFile(t *testing.T) {
 					}
 
 					if tt.uploadError != nil {
-						return storage.FileUploadResponse{}, tt.uploadError
+						return supabase.FileUploadResponse{}, tt.uploadError
 					}
 
-					return storage.FileUploadResponse{Key: path}, nil
+					return supabase.FileUploadResponse{Key: path}, nil
 				},
 			}
 
@@ -226,7 +161,7 @@ func TestUploadFile(t *testing.T) {
 				buckedId: tt.bucketId,
 			}
 
-			mockFile := createMockFile("test content")
+			mockFile := mocks.CreateMockFile("test content")
 			url, err := storageClient.UploadFile(tt.fileName, mockFile)
 
 			if tt.expectError {
@@ -282,8 +217,8 @@ func TestUpdateFileInPlace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			/* Creates mock client */
-			mockClient := &mockStorageClient{
-				updateFunc: func(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error) {
+			mockClient := &mocks.MockStorageClient{
+				UpdateFunc: func(bucketId string, path string, file multipart.File) (supabase.FileUploadResponse, error) {
 					/* Verify correct bucket is used */
 					if bucketId != tt.bucketId {
 						t.Errorf("Expected bucketId %q, but got %q", tt.bucketId, bucketId)
@@ -295,10 +230,10 @@ func TestUpdateFileInPlace(t *testing.T) {
 					}
 
 					if tt.updateError != nil {
-						return storage.FileUploadResponse{}, tt.updateError
+						return supabase.FileUploadResponse{}, tt.updateError
 					}
 
-					return storage.FileUploadResponse{Key: path}, nil
+					return supabase.FileUploadResponse{Key: path}, nil
 				},
 			}
 
@@ -308,7 +243,7 @@ func TestUpdateFileInPlace(t *testing.T) {
 				buckedId: tt.bucketId,
 			}
 
-			mockFile := createMockFile("test content")
+			mockFile := mocks.CreateMockFile("test content")
 			url, err := storageClient.UpdateFileInPlace(tt.fileName, mockFile)
 
 			if tt.expectError {
@@ -372,8 +307,8 @@ func TestReplaceFile(t *testing.T) {
 			deleteWasCalled := false
 			uploadWasCalled := false
 
-			mockClient := &mockStorageClient{
-				removeFunc: func(bucketId string, paths []string) ([]storage.FileUploadResponse, error) {
+			mockClient := &mocks.MockStorageClient{
+				RemoveFunc: func(bucketId string, paths []string) ([]supabase.FileUploadResponse, error) {
 					deleteWasCalled = true
 
 					/* Verify correct bucket is used */
@@ -390,10 +325,10 @@ func TestReplaceFile(t *testing.T) {
 						return nil, tt.deleteError
 					}
 
-					return []storage.FileUploadResponse{{Key: paths[0]}}, nil
+					return []supabase.FileUploadResponse{{Key: paths[0]}}, nil
 				},
 
-				uploadFunc: func(bucketId string, path string, file multipart.File) (storage.FileUploadResponse, error) {
+				UploadFunc: func(bucketId string, path string, file multipart.File) (supabase.FileUploadResponse, error) {
 					uploadWasCalled = true
 
 					/* Verify correct bucket is used */
@@ -407,10 +342,10 @@ func TestReplaceFile(t *testing.T) {
 					}
 
 					if tt.uploadError != nil {
-						return storage.FileUploadResponse{}, tt.uploadError
+						return supabase.FileUploadResponse{}, tt.uploadError
 					}
 
-					return storage.FileUploadResponse{Key: path}, nil
+					return supabase.FileUploadResponse{Key: path}, nil
 				},
 			}
 
@@ -420,7 +355,7 @@ func TestReplaceFile(t *testing.T) {
 				buckedId: tt.bucketId,
 			}
 
-			mockFile := createMockFile("new content")
+			mockFile := mocks.CreateMockFile("new content")
 			url, err := storageClient.ReplaceFile(tt.prevFileName, tt.newFileName, mockFile)
 
 			if tt.expectError {
@@ -505,8 +440,8 @@ func TestDeleteFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			/* Creates mock client */
-			mockClient := &mockStorageClient{
-				removeFunc: func(bucketId string, paths []string) ([]storage.FileUploadResponse, error) {
+			mockClient := &mocks.MockStorageClient{
+				RemoveFunc: func(bucketId string, paths []string) ([]supabase.FileUploadResponse, error) {
 					/* Verify correct bucket is used */
 					if bucketId != tt.bucketId {
 						t.Errorf("Expected bucketId %q, but got %q", tt.bucketId, bucketId)
@@ -526,7 +461,7 @@ func TestDeleteFile(t *testing.T) {
 						return nil, tt.removeError
 					}
 
-					return []storage.FileUploadResponse{{Key: paths[0]}}, nil
+					return []supabase.FileUploadResponse{{Key: paths[0]}}, nil
 				},
 			}
 

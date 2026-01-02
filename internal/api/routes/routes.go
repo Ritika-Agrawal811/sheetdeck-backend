@@ -1,10 +1,13 @@
 package routes
 
 import (
+	"log"
+
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/repository"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/analytics"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/cheatsheets"
 	"github.com/Ritika-Agrawal811/sheetdeck-backend/internal/services/config"
+	"github.com/Ritika-Agrawal811/sheetdeck-backend/pkg/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,7 +23,12 @@ type ServicesContainer struct {
  * @param repo *repository.Queries
  */
 func NewServicesContainer(repo *repository.Queries, db *pgxpool.Pool) *ServicesContainer {
-	cheatsheetsService := cheatsheets.NewCheatsheetsService(repo)
+	storageSdk, err := storage.NewStorageSdk()
+	if err != nil {
+		log.Println("Warning: Storage SDK not configured:", err)
+	}
+
+	cheatsheetsService := cheatsheets.NewCheatsheetsService(repo, storageSdk)
 	analyticsService := analytics.NewAnalyticsService(repo)
 	configService := config.NewConfigService(repo, db)
 
